@@ -14,13 +14,15 @@ DATA_DIR = ROOT_DIR / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
-# TODO: Set this to your actual raw data filename once you place it in data/raw/
-RAW_DATA_FILE = RAW_DATA_DIR / "apartments_zh.csv"
+# Dataset file — place your CSV at data/raw/apartments.csv
+# If your filename differs, update this path.
+RAW_DATA_FILE = RAW_DATA_DIR / "apartments.csv"
 
 # ── Model / artifact paths ─────────────────────────────────────────────────────
 MODELS_DIR = ROOT_DIR / "models"
 MODEL_ARTIFACT = MODELS_DIR / "pipeline.joblib"
 FEATURE_NAMES_ARTIFACT = MODELS_DIR / "feature_names.json"
+MODEL_METADATA_ARTIFACT = MODELS_DIR / "metadata.json"  # stores metrics + feature list
 
 # ── Results paths ──────────────────────────────────────────────────────────────
 RESULTS_DIR = ROOT_DIR / "results"
@@ -28,6 +30,8 @@ FIGURES_DIR = RESULTS_DIR / "figures"
 TABLES_DIR = RESULTS_DIR / "tables"
 CV_RESULTS_FILE = TABLES_DIR / "cv_results.csv"
 ITERATION_SUMMARY_FILE = TABLES_DIR / "iteration_summary.json"
+MODEL_COMPARISON_FILE = TABLES_DIR / "model_comparison.csv"   # all models, all iterations
+ITERATIONS_FILE = TABLES_DIR / "iterations.csv"               # one row per iteration
 
 # ── Reproducibility ────────────────────────────────────────────────────────────
 RANDOM_STATE = 42
@@ -82,3 +86,27 @@ DESCRIPTION_COLUMN = "descriptionraw"
 # TODO: Set to the column that holds the municipality or location name.
 #       Common names: "municipality", "gemeinde", "address", "location"
 LOCATION_COLUMN = "municipality"
+
+# ── Column auto-detection alias lists ─────────────────────────────────────────
+# data_loader.standardize_columns() searches these lists in order and renames
+# the first matching alias to the canonical name. Add your column name here if
+# it does not match any of the existing candidates.
+CANDIDATE_TARGET_COLS: list[str] = [
+    "price", "rent", "miete", "preis", "bruttomiete", "nettomiete",
+]
+CANDIDATE_ROOMS_COLS: list[str] = [
+    "rooms", "zimmer", "anzahl_zimmer", "numberOfRooms", "number_of_rooms",
+    "zimmeranzahl",
+]
+CANDIDATE_AREA_COLS: list[str] = [
+    "area", "flaeche", "wohnflaeche", "livingArea", "sqm", "m2",
+    "groesse", "wohnungsgroesse", "quadratmeter",
+]
+CANDIDATE_LOCATION_COLS: list[str] = [
+    "municipality", "gemeinde", "city", "ort", "location",
+    "address", "standort", "lokalitaet",
+]
+CANDIDATE_DESCRIPTION_COLS: list[str] = [
+    "descriptionraw", "description", "text", "beschreibung",
+    "freitext", "inserattext", "beschr",
+]

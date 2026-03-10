@@ -44,6 +44,7 @@ from the listing data.
 |----------------------|------------------------------------|
 | Source               | <!-- e.g. homegate.ch / open data / scraped dataset --> |
 | Geographic scope     | Canton of Zurich, Switzerland      |
+| File                 | `data/raw/apartments.csv`          |
 | Rows (raw)           | <!-- e.g. ~12,000 listings -->      |
 | Rows after cleaning  | <!-- fill after EDA -->             |
 | Target range (approx)| CHF <!-- min --> – <!-- max -->     |
@@ -59,6 +60,11 @@ from the listing data.
 | `municipality`  | categorical | Municipality name                        |
 | `descriptionraw`| text        | Free-text listing description            |
 | *(more)*        | …           | <!-- TODO: add remaining columns -->     |
+
+> **Column auto-detection:** `src/data_loader.standardize_columns()` automatically
+> detects common column name variants (see `CANDIDATE_*_COLS` in `src/config.py`)
+> and renames them to the canonical names listed above. If your CSV uses a different
+> column name, add it to the relevant candidate list in `config.py`.
 
 ---
 
@@ -238,7 +244,7 @@ Estimate from trained scikit-learn pipeline. For indicative purposes only.
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url>
+git clone https://github.com/Scampoloni/apartment-price-predictor
 cd apartment-price-predictor
 
 # 2. Create a virtual environment (Python 3.11+)
@@ -249,16 +255,25 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Place your dataset
-#    Copy your raw CSV file to:  data/raw/apartments_zh.csv
-#    Then update RAW_DATA_FILE in src/config.py if the name differs.
+#    Copy your CSV file to:  data/raw/apartments.csv
+#    The loader auto-detects encoding, separator, and common column name variants.
+#    If your column names differ, add them to the CANDIDATE_*_COLS lists in src/config.py.
 
-# 5. Train the models
-python -m src.train --iteration 1   # Baseline
-python -m src.train --iteration 2   # Improved (also saves model artifact)
+# 5. (Optional) Inspect the data loading
+python -m src.data_loader
 
-# 6. Launch the app
+# 6. Train the models
+python -m src.train --iteration 1   # Baseline  (LinearRegression + RandomForest)
+python -m src.train --iteration 2   # Improved  (RandomForest + MLPRegressor)
+                                    # → saves models/pipeline.joblib
+
+# 7. Review results tables
+#    results/tables/model_comparison.csv  — all models, both iterations
+#    results/tables/iterations.csv        — one row per iteration (summary)
+
+# 8. Launch the app
 python app.py
-#    Open http://localhost:7860 in your browser.
+#    Open http://localhost:7860
 ```
 
 ---
@@ -273,8 +288,8 @@ python app.py
    git push space main
    ```
 3. The Space will install `requirements.txt` and run `app.py` automatically.
-4. **Note:** Do not commit raw data. Only `models/pipeline.joblib` and
-   `models/feature_names.json` are needed for inference.
+4. **Note:** Do not commit raw data. Only `models/pipeline.joblib`,
+   `models/feature_names.json`, and `models/metadata.json` are needed for inference.
 
 ---
 

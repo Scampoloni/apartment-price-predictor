@@ -169,5 +169,72 @@ def print_model_comparison(cv_results_path: Path | None = None) -> None:
     print("─────────────────────────────────────────────────────────────────────\n")
 
 
+def save_model_comparison_csv(enriched_cv_records: list[dict[str, Any]]) -> None:
+    """Persist all model results (CV + optional holdout) to model_comparison.csv.
+
+    Replaces existing rows for the same iteration so re-running is idempotent.
+    The file accumulates results across both iterations, making it easy to
+    produce the academic comparison table directly from CSV.
+
+    Args:
+        enriched_cv_records: CV result dicts from cross_validate_model(),
+            each enriched with keys: iteration, is_best,
+            holdout_rmse, holdout_mae, holdout_r2 (None for non-best rows).
+    """
+    from src.config import MODEL_COMPARISON_FILE  # avoid circular imports at module load
+    TABLES_DIR.mkdir(parents=True, exist_ok=True)
+
+    df_new = pd.DataFrame(enriched_cv_records)
+    iteration = df_new["iteration"].iloc[0]
+
+    if MODEL_COMPARISON_FILE.exists():
+        df_existing = pd.read_csv(MODEL_COMPARISON_FILE)
+        df_existing = df_existing[df_existing["iteration"] != iteration]
+        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+    else:
+        df_combined = df_new
+
+    # Reorder columns for readability
+    preferred_order = [
+        "iteration", "model_name", "is_best",
+        "cv_rmse_mean", "cv_rmse_std", "cv_mae_mean", "cv_mae_std",
+        "cv_r2_mean", "cv_r2_std",
+        "holdout_rmse", "holdout_mae", "holdout_r2",
+    ]
+    cols = [c for c in preferred_order if c in df_combined.columns]
+    df_combined = df_combined[cols + [c for c in df_combined.columns if c not in cols]]
+
+    df_combined.to_csv(MODEL_COMPARISON_FILE, index=False)
+    print(f"[evaluate] Model comparison saved → {MODEL_COMPARISON_FILE}")
+
+
+def save_iterations_csv(iteration_record: dict[str, Any]) -> None:
+    """Persist a one-row summary of the best model per iteration.
+
+    Creates results/tables/iterations.csv — one row per iteration,
+    overwriting any previous row for the same iteration number.
+
+    Args:
+        iteration_record: dict with keys:
+            iteration, best_model, n_features, features,
+            cv_rmse, holdout_rmse, holdout_mae, holdout_r2.
+    """
+    from src.config import ITERATIONS_FILE  # avoid circular imports at module load
+    TABLES_DIR.mkdir(parents=True, exist_ok=True)
+
+    df_new = pd.DataFrame([iteration_record])
+    iteration = iteration_record["iteration"]
+
+    if ITERATIONS_FILE.exists():
+        df_existing = pd.read_csv(ITERATIONS_FILE)
+        df_existing = df_existing[df_existing["iteration"] != iteration]
+        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+    else:
+        df_combined = df_new
+
+    df_combined.sort_values("iteration").to_csv(ITERATIONS_FILE, index=False)
+    print(f"[evaluate] Iteration summary saved → {ITERATIONS_FILE}")
+
+
 if __name__ == "__main__":
     print_model_comparison()

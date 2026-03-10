@@ -172,6 +172,63 @@ def engineer_all_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# ── Runtime feature-list resolver ─────────────────────────────────────────────
+
+def get_feature_lists(
+    df_engineered: pd.DataFrame,
+    iteration: int,
+) -> tuple[list[str], list[str], list[str]]:
+    """Return (numeric, categorical, binary) feature lists for the given iteration.
+
+    Called *after* feature engineering so engineered columns (rooms_per_m2,
+    flags, …) are already present in df_engineered.  Only includes columns
+    that actually exist in the DataFrame — missing optionals are silently
+    dropped with a warning so the pipeline never crashes on partial data.
+
+    Args:
+        df_engineered: DataFrame after the relevant engineer_*_features() call.
+        iteration:     1 (baseline) or 2 (improved).
+
+    Returns:
+        Tuple of three lists: (numeric_features, categorical_features, binary_features).
+
+    Raises:
+        ValueError: If no numeric features are found (rooms/area both missing).
+    """
+    available = set(df_engineered.columns)
+
+    def _pick(candidates: list[str], label: str) -> list[str]:
+        found = [c for c in candidates if c in available]
+        dropped = [c for c in candidates if c not in available]
+        if dropped:
+            print(f"[features] {label}: column(s) {dropped} not found — skipped")
+        return found
+
+    if iteration == 1:
+        numeric     = _pick(["rooms", "area"], "numeric (iter 1)")
+        categorical = _pick(["municipality"], "categorical (iter 1)")
+        binary      = []
+    else:
+        numeric     = _pick(["rooms", "area", "rooms_per_m2"], "numeric (iter 2)")
+        categorical = _pick(["municipality"], "categorical (iter 2)")
+        binary      = _pick(
+            ["is_furnished", "is_temporary", "has_balcony", "is_luxurious", "is_zurich_city"],
+            "binary (iter 2)",
+        )
+
+    if not numeric:
+        raise ValueError(
+            "No usable numeric features found. "
+            "Ensure 'rooms' and/or 'area' columns exist after standardize_columns()."
+        )
+
+    print(
+        f"[features] Iter {iteration} — "
+        f"numeric={numeric}  categorical={categorical}  binary={binary}"
+    )
+    return numeric, categorical, binary
+
+
 if __name__ == "__main__":
     # Minimal smoke test with synthetic data
     sample = pd.DataFrame({
@@ -188,3 +245,5 @@ if __name__ == "__main__":
     print(result[["rooms", "area", "rooms_per_m2",
                   "is_furnished", "is_temporary", "has_balcony",
                   "is_luxurious", "is_zurich_city"]])
+    numeric, categorical, binary = get_feature_lists(result, iteration=2)
+    print(f"\nResolved features: num={numeric}  cat={categorical}  bin={binary}")

@@ -21,6 +21,7 @@ from src.config import (
     FEATURE_NAMES_ARTIFACT,
     LOCATION_COLUMN,
     MODEL_ARTIFACT,
+    MODEL_METADATA_ARTIFACT,
 )
 from src.features import engineer_all_features
 
@@ -53,6 +54,15 @@ def _load_feature_names() -> list[str]:
             "  python -m src.train --iteration 2"
         )
     with open(FEATURE_NAMES_ARTIFACT) as f:
+        return json.load(f)
+
+
+@lru_cache(maxsize=1)
+def _load_metadata() -> dict:
+    """Load and cache the model metadata (metrics, feature list) saved during training."""
+    if not MODEL_METADATA_ARTIFACT.exists():
+        return {}  # metadata is optional — app still works without it
+    with open(MODEL_METADATA_ARTIFACT) as f:
         return json.load(f)
 
 
@@ -110,12 +120,20 @@ def predict_price(
     predicted = float(pipeline.predict(X)[0])
     predicted = max(0.0, predicted)  # rent must be non-negative
 
+    # Build a human-readable model note from saved metadata
+    meta = _load_metadata()
+    if meta:
+        model_note = (
+            f"Model: {meta.get('model_name', 'unknown')}  |"
+            f"  Holdout RMSE ≈ CHF {meta.get('holdout_rmse', '?'):,}  |"
+            f"  R\u00b2 = {meta.get('holdout_r2', '?')}"
+        )
+    else:
+        model_note = "Estimate from trained scikit-learn pipeline. For indicative purposes only."
+
     return {
         "predicted_price_chf": round(predicted, 2),
-        "model_note": (
-            "Estimate from trained scikit-learn pipeline "
-            "(Random Forest / MLP). For indicative purposes only."
-        ),
+        "model_note": model_note,
     }
 
 
