@@ -38,33 +38,38 @@ from the listing data.
 
 ## Dataset Overview
 
-<!-- TODO: Fill in once the dataset is finalised. -->
+**Working source file:** `data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv`  
+(Analytics HS24 dataset — canton of Zurich rental listings with coordinates)
 
-| Property             | Value                              |
-|----------------------|------------------------------------|
-| Source               | <!-- e.g. homegate.ch / open data / scraped dataset --> |
-| Geographic scope     | Canton of Zurich, Switzerland      |
-| File                 | `data/raw/apartments.csv`          |
-| Rows (raw)           | <!-- e.g. ~12,000 listings -->      |
-| Rows after cleaning  | <!-- fill after EDA -->             |
-| Target range (approx)| CHF <!-- min --> – <!-- max -->     |
-| Time period          | <!-- e.g. 2022–2024 -->             |
+| Property             | Value                                               |
+|----------------------|-----------------------------------------------------|
+| Source               | Analytics HS24 course dataset                       |
+| Geographic scope     | Canton of Zurich, Switzerland                       |
+| File                 | `original_apartment_data_analytics_hs24_with_lat_lon.csv` |
+| Rows (raw)           | 819 listings                                        |
+| Target range (raw)   | CHF 50 – 9,950 / month (outliers filtered in clean) |
+| Rooms range          | 1.0 – 8.5                                           |
+| Area range           | 8 – 300 m²                                          |
+| Unique municipalities| 112 (`town` + `bfs_name` columns)                  |
+| Coordinates          | WGS-84 `lat`/`lon` + Swiss LV95 `x`/`y`            |
 
-**Key columns used:**
+**Column mapping** (handled automatically by `data_loader.standardize_columns()`):
 
-| Column          | Type        | Description                              |
-|-----------------|-------------|------------------------------------------|
-| `price`         | numeric     | Monthly rent in CHF (target)             |
-| `rooms`         | numeric     | Number of rooms (Swiss convention)       |
-| `area`          | numeric     | Living area in m²                        |
-| `municipality`  | categorical | Municipality name                        |
-| `descriptionraw`| text        | Free-text listing description            |
-| *(more)*        | …           | <!-- TODO: add remaining columns -->     |
+| CSV column        | Canonical name   | Type        | Used in model         |
+|-------------------|------------------|-------------|-----------------------|
+| `price`           | `price`          | numeric     | Target variable       |
+| `rooms`           | `rooms`          | numeric     | Feature (iter 1 & 2)  |
+| `area`            | `area`           | numeric     | Feature (iter 1 & 2)  |
+| `bfs_name`        | `municipality`   | categorical | Feature (iter 1 & 2)  |
+| `description_raw` | `descriptionraw` | text        | Flag extraction (iter 2) |
+| `lat`, `lon`      | *(unchanged)*    | numeric     | Not used (available for future extension) |
+| `pop_dens`, `tax_income` | *(unchanged)* | numeric | Not used (available for future extension) |
+| `town`, `postalcode`, `address`, `bfs_number`, `pop`, `frg_pct`, `emp`, `x`, `y` | — | — | Passthrough / unused |
 
-> **Column auto-detection:** `src/data_loader.standardize_columns()` automatically
-> detects common column name variants (see `CANDIDATE_*_COLS` in `src/config.py`)
-> and renames them to the canonical names listed above. If your CSV uses a different
-> column name, add it to the relevant candidate list in `config.py`.
+> `bfs_name` is preferred over `town` as the municipality column because it uses the
+> official BFS name format (e.g. "Rüti (ZH)") which is cleaner for one-hot encoding.
+> Both `bfs_name` and `town` appear before `address` in `CANDIDATE_LOCATION_COLS`
+> so that the full street address is never accidentally used as a location feature.
 
 ---
 
@@ -88,8 +93,9 @@ apartment-price-predictor/
 ├── results/
 │   ├── figures/            # Plots (residuals, feature importance, …)
 │   └── tables/
-│       ├── cv_results.csv          # Cross-validation scores, all models & iterations
-│       └── iteration_summary.json  # Best model per iteration + holdout metrics
+│       ├── cv_results.csv          # Raw CV scores (all folds, all models)
+│       ├── model_comparison.csv    # All models × iterations, CV + holdout metrics
+│       └── iterations.csv          # One row per iteration — submission-ready summary
 │
 ├── notebooks/              # Exploratory notebooks (EDA, sanity checks)
 │
@@ -155,10 +161,10 @@ Implemented in `src/features.py`:
 
 **Models compared:**
 
-| Model                | CV RMSE (mean) | CV RMSE (±) | CV R² | Holdout RMSE |
-|----------------------|----------------|-------------|-------|--------------|
-| LinearRegression     | <!-- TODO -->  | <!-- -->    | <!-- --> | <!-- -->  |
-| RandomForest_v1      | <!-- TODO -->  | <!-- -->    | <!-- --> | <!-- -->  |
+| Model                | CV RMSE (CHF) | CV RMSE (±) | CV MAE (CHF) | CV R²  | Holdout RMSE |
+|----------------------|---------------|-------------|--------------|--------|--------------|
+| LinearRegression     | 880           | ± 137       | 560          | 0.48   | —            |
+| RandomForest\_v1    | **800**       | ± 170       | **516**      | **0.58** | **845 CHF** |
 
 ### Iteration 2 — Improved
 
@@ -174,13 +180,17 @@ Implemented in `src/features.py`:
 
 **Models compared:**
 
-| Model            | CV RMSE (mean) | CV RMSE (±) | CV R² | Holdout RMSE |
-|------------------|----------------|-------------|-------|--------------|
-| RandomForest_v2  | <!-- TODO -->  | <!-- -->    | <!-- --> | <!-- -->  |
-| MLPRegressor     | <!-- TODO -->  | <!-- -->    | <!-- --> | <!-- -->  |
+| Model            | CV RMSE (CHF) | CV RMSE (±) | CV MAE (CHF) | CV R²  | Holdout RMSE |
+|------------------|---------------|-------------|--------------|--------|--------------|
+| RandomForest\_v2 | **798**       | ± 164       | **515**      | **0.58** | **840 CHF** |
+| MLPRegressor     | 886           | ± 168       | 578          | 0.47   | —            |
 
-> Results populated automatically in `results/tables/cv_results.csv`
-> and `results/tables/iteration_summary.json` after running `src/train.py`.
+> Results populated automatically by `python -m src.train --iteration N`.
+> - `results/tables/model_comparison.csv` — all models, both iterations (CV + holdout)
+> - `results/tables/iterations.csv` — one summary row per iteration with columns:
+>   `iteration`, `objective`, `models_used`, `best_model`, `changes_vs_previous`,
+>   `preprocessing_steps`, `hyperparameters`, `cv_rmse`, `cv_mae`, `cv_r2`,
+>   `holdout_rmse`, `holdout_mae`, `holdout_r2`, `n_features`, `features`
 
 ---
 
@@ -197,22 +207,21 @@ Implemented in `src/features.py`:
 
 ## Final Selected Model
 
-<!-- TODO: Fill in after running both iterations. -->
+| Property             | Value                                          |
+|----------------------|------------------------------------------------|
+| Model class          | `RandomForestRegressor`                        |
+| Iteration            | 2                                              |
+| Key hyperparameters  | n\_estimators=200, max\_depth=15, min\_samples\_leaf=2, max\_features=sqrt |
+| CV RMSE (mean)       | 798 CHF                                        |
+| CV MAE  (mean)       | 515 CHF                                        |
+| CV R²   (mean)       | 0.58                                           |
+| Holdout RMSE         | 840 CHF                                        |
+| Holdout MAE          | 504 CHF                                        |
+| Holdout R²           | 0.56                                           |
+| Artifact path        | `models/pipeline.joblib`                       |
 
-| Property             | Value              |
-|----------------------|--------------------|
-| Model class          | <!-- e.g. RandomForestRegressor --> |
-| Iteration            | 2                  |
-| Key hyperparameters  | <!-- e.g. n_estimators=200, max_depth=15 --> |
-| CV RMSE (mean)       | <!-- CHF -->        |
-| Holdout RMSE         | <!-- CHF -->        |
-| Holdout MAE          | <!-- CHF -->        |
-| Holdout R²           | <!-- -->            |
-| Artifact path        | `models/pipeline.joblib` |
-
-**Justification for selecting this model over the alternatives:**
-<!-- TODO: Write 2–3 sentences comparing iteration 1 and 2, and explaining
-     the final model choice based on CV RMSE vs. holdout RMSE trade-off. -->
+**Why this model was selected over the alternatives:**  
+RandomForest\_v2 achieved the lowest CV RMSE (798 CHF) and holdout RMSE (840 CHF) across both iterations and all four models. Adding engineered features in Iteration 2 gave a marginal improvement over Iteration 1's RandomForest\_v1 (800 → 798 CHF CV RMSE; 845 → 840 CHF holdout RMSE) while the MLPRegressor underperformed on this dataset size (886 CHF CV RMSE). LinearRegression provided a useful lower-bound baseline. The tree-based model is also more interpretable and requires no feature scaling.
 
 ---
 
@@ -255,9 +264,11 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 # 4. Place your dataset
-#    Copy your CSV file to:  data/raw/apartments.csv
-#    The loader auto-detects encoding, separator, and common column name variants.
-#    If your column names differ, add them to the CANDIDATE_*_COLS lists in src/config.py.
+#    The project expects the HS24 dataset at:
+#      data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv
+#    No renaming needed — RAW_DATA_FILE in src/config.py already points here.
+#    If you use a different file, update RAW_DATA_FILE in src/config.py and
+#    add any new column name variants to the CANDIDATE_*_COLS lists.
 
 # 5. (Optional) Inspect the data loading
 python -m src.data_loader

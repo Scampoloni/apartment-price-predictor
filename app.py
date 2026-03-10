@@ -111,8 +111,12 @@ def _model_info_md() -> str:
         meta = {}
     if not meta:
         return "_Train the model to see performance metrics here._"
+    model_name = meta.get("selected_model") or meta.get("model_name", "–")
+    iteration  = meta.get("selected_iteration") or meta.get("iteration", "–")
     return (
-        f"**Model:** {meta.get('model_name', '–')}  \n"
+        f"**Model:** {model_name}  \n"
+        f"**Iteration:** {iteration}  \n"
+        f"**CV RMSE:** CHF {meta.get('cv_rmse_mean', '–'):,}  \n"
         f"**Holdout RMSE:** CHF {meta.get('holdout_rmse', '–'):,}  \n"
         f"**Holdout MAE:** CHF {meta.get('holdout_mae', '–'):,}  \n"
         f"**R²:** {meta.get('holdout_r2', '–')}  \n"
@@ -203,11 +207,6 @@ with gr.Blocks(
     for the canton of Zurich. They do not constitute a binding offer and may deviate
     significantly from actual market conditions.
     """)
-
-
-if __name__ == "__main__":
-    demo.launch()
-
 
 
 if __name__ == "__main__":

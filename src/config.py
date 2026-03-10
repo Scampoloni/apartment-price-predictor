@@ -14,9 +14,9 @@ DATA_DIR = ROOT_DIR / "data"
 RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 
-# Dataset file — place your CSV at data/raw/apartments.csv
-# If your filename differs, update this path.
-RAW_DATA_FILE = RAW_DATA_DIR / "apartments.csv"
+# Primary dataset file for this project.
+# Place the file at this exact path; no renaming needed.
+RAW_DATA_FILE = RAW_DATA_DIR / "original_apartment_data_analytics_hs24_with_lat_lon.csv"
 
 # ── Model / artifact paths ─────────────────────────────────────────────────────
 MODELS_DIR = ROOT_DIR / "models"
@@ -39,34 +39,31 @@ TEST_SIZE = 0.20       # 80/20 train-test split
 CV_FOLDS = 5           # k-fold cross-validation
 
 # ── Target variable ────────────────────────────────────────────────────────────
-# TODO: Set to the exact column name for monthly rent in your dataset.
-#       Common names: "price", "rent", "miete", "bruttomiete"
+# Monthly gross rental price in CHF.  Aliases detected by data_loader are
+# listed in CANDIDATE_TARGET_COLS below.
 TARGET_COLUMN = "price"
 
-# ── Baseline feature set (Iteration 1) ────────────────────────────────────────
-# TODO: Adjust to the actual column names present in your dataset.
-#       Start with the most obviously predictive numeric columns.
+# ── Static reference feature lists (documentation only) ────────────────────────
+# These lists describe the intended feature sets for each iteration.
+# They are NOT imported by train.py; the runtime list is resolved dynamically
+# by src.features.get_feature_lists() which checks what columns actually exist.
+
+# Iteration 1 — baseline (raw columns only, no engineering)
 BASELINE_NUMERIC_FEATURES: list[str] = [
-    "rooms",  # number of rooms  (e.g. 3.5)
+    "rooms",  # number of rooms (e.g. 3.5)
     "area",   # living area in m²
 ]
-
 BASELINE_CATEGORICAL_FEATURES: list[str] = [
-    # TODO: Uncomment and adjust once you know your categorical columns.
-    # "municipality",   # municipality name string
-    # "canton",         # should be "ZH" for all rows in this dataset
+    "municipality",  # municipality name string (included when column is found)
 ]
 
-# ── Improved feature set (Iteration 2) ────────────────────────────────────────
-# Extends the baseline with engineered features from src/features.py
+# Iteration 2 — improved (adds engineered features from src/features.py)
 IMPROVED_NUMERIC_FEATURES: list[str] = BASELINE_NUMERIC_FEATURES + [
     "rooms_per_m2",  # engineered: rooms / area — captures room density
 ]
 
-IMPROVED_CATEGORICAL_FEATURES: list[str] = BASELINE_CATEGORICAL_FEATURES + [
-    # TODO: Add higher-cardinality location columns if available, e.g.
-    # "district_category",   # binned district (low/mid/high price zone)
-    # "municipality",        # move here from baseline if cardinality is manageable
+IMPROVED_CATEGORICAL_FEATURES: list[str] = [
+    "municipality",  # municipality name string (included when column is found)
 ]
 
 IMPROVED_BINARY_FEATURES: list[str] = [
@@ -78,13 +75,12 @@ IMPROVED_BINARY_FEATURES: list[str] = [
 ]
 
 # ── Text column ────────────────────────────────────────────────────────────────
-# TODO: Set to the raw description column name used for flag extraction.
-#       Common names: "descriptionraw", "description", "text", "beschreibung"
+# Free-text listing description — used only for flag extraction, never as a
+# direct model input.  Aliases auto-detected by CANDIDATE_DESCRIPTION_COLS.
 DESCRIPTION_COLUMN = "descriptionraw"
 
 # ── Address / location column ──────────────────────────────────────────────────
-# TODO: Set to the column that holds the municipality or location name.
-#       Common names: "municipality", "gemeinde", "address", "location"
+# Municipality / location name column.  Aliases auto-detected by CANDIDATE_LOCATION_COLS.
 LOCATION_COLUMN = "municipality"
 
 # ── Column auto-detection alias lists ─────────────────────────────────────────
@@ -103,10 +99,22 @@ CANDIDATE_AREA_COLS: list[str] = [
     "groesse", "wohnungsgroesse", "quadratmeter",
 ]
 CANDIDATE_LOCATION_COLS: list[str] = [
-    "municipality", "gemeinde", "city", "ort", "location",
-    "address", "standort", "lokalitaet",
+    "municipality", "gemeinde",
+    "bfs_name",   # official BFS municipality name (e.g. "Rüti (ZH)")
+    "town",       # display town name   (e.g. "Rüti ZH")
+    "city", "ort", "location", "standort", "lokalitaet",
+    "address",    # last: full street address — only used as fallback
 ]
 CANDIDATE_DESCRIPTION_COLS: list[str] = [
-    "descriptionraw", "description", "text", "beschreibung",
+    "descriptionraw",
+    "description_raw",  # variant used in HS24 dataset
+    "description", "text", "beschreibung",
     "freitext", "inserattext", "beschr",
 ]
+
+# ── Passthrough columns (available in the HS24 dataset, not used by the model) ─
+# lat, lon  — WGS-84 coordinates (potential future feature: distance to Zurich HB)
+# x, y      — Swiss LV95 coordinates
+# pop_dens  — population density (potential future feature)
+# tax_income — median taxable income per municipality (potential future feature)
+# These columns pass through data_loader unchanged and are available for EDA.

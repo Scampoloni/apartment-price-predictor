@@ -95,6 +95,41 @@ ITER2_MODELS: dict = {
 }
 
 
+# ── Per-iteration metadata (used in iterations.csv and metadata.json) ──────────────────────────
+# Keep these in sync with ITER1_MODELS / ITER2_MODELS above.
+_ITERATION_META: dict[int, dict] = {
+    1: {
+        "objective": "Establish a performance floor with minimal features and simple models",
+        "changes_vs_previous": "Initial baseline — no previous iteration",
+        "preprocessing_steps": (
+            "Median imputation for numerics; "
+            "mode imputation + OneHotEncoder for categoricals"
+        ),
+        "hyperparameters": {
+            "LinearRegression": "default sklearn settings",
+            "RandomForest_v1":  "n_estimators=100, max_depth=10, min_samples_leaf=4",
+        },
+    },
+    2: {
+        "objective": "Improve RMSE via feature engineering and stronger models",
+        "changes_vs_previous": (
+            "Added engineered features: rooms_per_m2, is_furnished, has_balcony, "
+            "is_luxurious, is_temporary, is_zurich_city; "
+            "upgraded RandomForest (deeper, more trees); added MLPRegressor with StandardScaler"
+        ),
+        "preprocessing_steps": (
+            "Median imputation + StandardScaler for numerics; "
+            "mode imputation + OneHotEncoder for categoricals; "
+            "constant-0 imputation for binary flags"
+        ),
+        "hyperparameters": {
+            "RandomForest_v2": "n_estimators=200, max_depth=15, min_samples_leaf=2, max_features=sqrt",
+            "MLPRegressor":    "hidden=(128,64), activation=relu, adam, lr=1e-3, early_stopping=True",
+        },
+    },
+}
+
+
 # ── Core training function ─────────────────────────────────────────────────────
 
 def train_iteration(iteration: int) -> None:
@@ -148,7 +183,8 @@ def train_iteration(iteration: int) -> None:
     cv_records: list[dict] = []
     best_cv_rmse = float("inf")
     best_name = ""
-    best_estimator = None  # store the sklearn estimator, not the pipeline
+    best_estimator = None   # store the sklearn estimator, not the pipeline
+    best_cv_record: dict = {}  # CV result dict of the winning model
 
     for name, estimator in models.items():
         print(f"\n[train] Cross-validating: {name} …")
@@ -172,6 +208,7 @@ def train_iteration(iteration: int) -> None:
             best_cv_rmse = cv_record["cv_rmse_mean"]
             best_name = name
             best_estimator = estimator
+            best_cv_record = cv_record
 
     save_cv_results(cv_records, iteration=iteration)
     print_model_comparison()
@@ -209,15 +246,23 @@ def train_iteration(iteration: int) -> None:
     save_model_comparison_csv(cv_records)
 
     # ── 8. Save iterations.csv  (one row per iteration) ───────────────────────
+    _iter_meta = _ITERATION_META[iteration]
     save_iterations_csv({
-        "iteration":    iteration,
-        "best_model":   best_name,
-        "n_features":   len(all_features),
-        "features":     ", ".join(all_features),
-        "cv_rmse":      round(best_cv_rmse, 1),
-        "holdout_rmse": round(holdout["rmse"], 1),
-        "holdout_mae":  round(holdout["mae"], 1),
-        "holdout_r2":   round(holdout["r2"], 4),
+        "iteration":           iteration,
+        "objective":           _iter_meta["objective"],
+        "models_used":         ", ".join(models.keys()),
+        "best_model":          best_name,
+        "changes_vs_previous": _iter_meta["changes_vs_previous"],
+        "preprocessing_steps": _iter_meta["preprocessing_steps"],
+        "hyperparameters":     _iter_meta["hyperparameters"].get(best_name, "—"),
+        "n_features":          len(all_features),
+        "features":            ", ".join(all_features),
+        "cv_rmse":             round(best_cv_rmse, 1),
+        "cv_mae":              round(best_cv_record.get("cv_mae_mean", float("nan")), 1),
+        "cv_r2":               round(best_cv_record.get("cv_r2_mean", float("nan")), 4),
+        "holdout_rmse":        round(holdout["rmse"], 1),
+        "holdout_mae":         round(holdout["mae"], 1),
+        "holdout_r2":          round(holdout["r2"], 4),
     })
 
     # ── 9. Save model artifacts (only for Iteration 2 → used by app.py) ───────
@@ -229,14 +274,23 @@ def train_iteration(iteration: int) -> None:
             json.dump(all_features, f, indent=2)
 
         metadata = {
-            "iteration":    iteration,
-            "model_name":   best_name,
-            "cv_rmse_mean": round(best_cv_rmse, 1),
-            "holdout_rmse": round(holdout["rmse"], 1),
-            "holdout_mae":  round(holdout["mae"], 1),
-            "holdout_r2":   round(holdout["r2"], 4),
-            "n_features":   len(all_features),
-            "features":     all_features,
+            # Identity of the selected model
+            "selected_model":     best_name,
+            "selected_iteration": iteration,
+            # Cross-validation metrics (all three)
+            "cv_rmse_mean":       round(best_cv_rmse, 1),
+            "cv_mae_mean":        round(best_cv_record.get("cv_mae_mean", float("nan")), 1),
+            "cv_r2_mean":         round(best_cv_record.get("cv_r2_mean", float("nan")), 4),
+            # Holdout (test-set) metrics
+            "holdout_rmse":       round(holdout["rmse"], 1),
+            "holdout_mae":        round(holdout["mae"], 1),
+            "holdout_r2":         round(holdout["r2"], 4),
+            # Feature list used in training
+            "n_features":         len(all_features),
+            "features":           all_features,
+            # Legacy keys kept for backward compatibility with app.py
+            "model_name":         best_name,
+            "iteration":          iteration,
         }
         with open(MODEL_METADATA_ARTIFACT, "w") as f:
             json.dump(metadata, f, indent=2)

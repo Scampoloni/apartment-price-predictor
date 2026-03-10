@@ -112,22 +112,56 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     }
     required = {TARGET_COLUMN, "rooms", "area"}
 
-    print("[data_loader] Column detection:")
+    required_found:   list[str] = []
+    required_missing: list[str] = []
+    optional_found:   list[str] = []
+    optional_missing: list[str] = []
+
+    print("[data_loader] ── Column Mapping Report ────────────────────────────────")
     for canonical, candidates in alias_map.items():
+        is_req = canonical in required
+        bucket_ok  = required_found   if is_req else optional_found
+        bucket_bad = required_missing if is_req else optional_missing
         if canonical in df.columns:
-            print(f"  ✓  '{canonical}' found directly")
+            print(f"  ✓  {canonical:<22} found directly")
+            bucket_ok.append(canonical)
             continue
-        found = False
+        matched = False
         for alias in candidates:
             if alias in df.columns:
                 df = df.rename(columns={alias: canonical})
-                print(f"  ✓  '{alias}' → renamed to '{canonical}'")
-                found = True
+                print(f"  ✓  {canonical:<22} ← renamed from '{alias}'")
+                bucket_ok.append(canonical)
+                matched = True
                 break
-        if not found:
-            tag = "✗  REQUIRED" if canonical in required else "○  optional"
-            print(f"  {tag}: '{canonical}' not found  (tried: {candidates})")
+        if not matched:
+            tag = "✗  REQUIRED" if is_req else "○  optional"
+            print(f"  {tag:<13} {canonical:<22} (tried: {candidates})")
+            bucket_bad.append(canonical)
+
     print()
+    req_ok  = ", ".join(required_found)  or "—"
+    req_bad = ", ".join(required_missing) or "—"
+    opt_ok  = ", ".join(optional_found)  or "—"
+    opt_bad = ", ".join(optional_missing) or "—"
+    print(f"  Required  found   : {req_ok}")
+    print(f"  Required  missing : {req_bad}")
+    print(f"  Optional  found   : {opt_ok}")
+    print(f"  Optional  missing : {opt_bad}")
+    print("[data_loader] ─────────────────────────────────────────────────────────")
+
+    if required_missing:
+        col_list = ", ".join(f"'{c}'" for c in required_missing)
+        hints = "\n".join(
+            f"    {c}: tried {alias_map[c]}" for c in required_missing
+        )
+        raise ValueError(
+            f"\n\nRequired column(s) not found: {col_list}\n\n"
+            f"Candidates tried:\n{hints}\n\n"
+            f"→ Add your column name to the matching CANDIDATE_*_COLS list in src/config.py.\n"
+            f"→ Columns present in your CSV: {sorted(df.columns.tolist())}"
+        )
+
     return df
 
 

@@ -7,6 +7,13 @@ Design rules:
   so training and inference never break on partial input.
 - engineer_baseline_features() — identity transform, used in Iteration 1.
 - engineer_all_features()       — full pipeline, used in Iteration 2.
+
+Target-leakage safety:
+- rooms_per_m2  → derived from rooms + area only (both are input features, not the target).
+- is_furnished, is_temporary, has_balcony, is_luxurious
+                → derived from DESCRIPTION_COLUMN (free-text listing field, not the target).
+- is_zurich_city → derived from LOCATION_COLUMN (municipality name, not the target).
+- No feature uses the target column (price) directly or transitively.
 """
 
 import re
