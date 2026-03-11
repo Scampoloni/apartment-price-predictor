@@ -171,6 +171,11 @@ Implemented in `src/features.py`:
 | CV folds         | 5                                  |
 | Test split       | 20 %                               |
 
+**Preprocessing (Iteration 1):**
+- Numeric (`rooms`, `area`): median imputation, no scaling
+- Categorical (`municipality`): mode imputation → OneHotEncoder (handle_unknown=ignore)
+- 80/20 random train/test split; preprocessing fitted on training set only
+
 **Models compared:**
 
 | Model                | CV RMSE (CHF) | CV RMSE (±) | CV MAE (CHF) | CV R²  | Holdout RMSE |
@@ -189,6 +194,12 @@ Implemented in `src/features.py`:
 | Scaling          | Yes (for MLPRegressor inputs)                       |
 | CV folds         | 5                                                   |
 | Test split       | 20 %                                                |
+
+**Preprocessing (Iteration 2):**
+- Numeric (`rooms`, `area`, `rooms_per_m2`): median imputation; StandardScaler applied where required (MLPRegressor)
+- Categorical (`municipality`): mode imputation → OneHotEncoder (handle_unknown=ignore)
+- Binary flags (`is_furnished`, `is_temporary`, `has_balcony`, `is_luxurious`, `is_zurich_city`): constant imputation (fill=0)
+- Same 80/20 split as Iteration 1; preprocessing fitted on training set only
 
 **Models compared:**
 
@@ -210,7 +221,7 @@ Implemented in `src/features.py`:
 
 - **Primary metric:** RMSE — penalises large errors, same unit as rent (CHF).
 - **Secondary metrics:** MAE (interpretable in CHF), R² (goodness of fit).
-- **Method:** Stratified 5-fold cross-validation on the training split,
+- **Method:** 5-fold cross-validation on the training split,
   followed by a single holdout evaluation on the 20 % test split.
 - **Anti-leakage:** Preprocessing fitted only on the training folds;
   test set never seen during model selection.
