@@ -1,3 +1,14 @@
+---
+title: Apartment Price Predictor
+emoji: 🦀
+colorFrom: indigo
+colorTo: gray
+sdk: gradio
+sdk_version: 6.9.0
+app_file: app.py
+pinned: false
+---
+
 # Apartment Price Predictor — Canton of Zurich
 
 > **Academic ML project** | scikit-learn · pandas · Gradio · Python 3.11+
@@ -291,6 +302,8 @@ python app.py
 ---
 
 ## Deployment to Hugging Face Spaces
+
+**Live demo:** [https://huggingface.co/spaces/Scampolonii/apartment-price-predictor](https://huggingface.co/spaces/Scampolonii/apartment-price-predictor)
 
 1. Create a new Space on [huggingface.co/spaces](https://huggingface.co/spaces)
    — choose **SDK: Gradio**, Python 3.11.
