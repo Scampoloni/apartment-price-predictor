@@ -1,0 +1,11 @@
+[
+  "rooms",
+  "area",
+  "rooms_per_m2",
+  "municipality",
+  "is_furnished",
+  "is_temporary",
+  "has_balcony",
+  "is_luxurious",
+  "is_zurich_city"
+]

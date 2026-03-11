@@ -129,7 +129,6 @@ def _model_info_md() -> str:
 
 with gr.Blocks(
     title="Apartment Price Predictor — Canton of Zurich",
-    theme=gr.themes.Soft(),
 ) as demo:
 
     gr.Markdown("""
@@ -210,4 +209,4 @@ with gr.Blocks(
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(theme=gr.themes.Soft())

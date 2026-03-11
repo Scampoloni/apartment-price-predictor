@@ -1,0 +1,24 @@
+{
+  "selected_model": "RandomForest_v2",
+  "selected_iteration": 2,
+  "cv_rmse_mean": 798.1,
+  "cv_mae_mean": 515.3,
+  "cv_r2_mean": 0.5842,
+  "holdout_rmse": 840.3,
+  "holdout_mae": 504.1,
+  "holdout_r2": 0.5635,
+  "n_features": 9,
+  "features": [
+    "rooms",
+    "area",
+    "rooms_per_m2",
+    "municipality",
+    "is_furnished",
+    "is_temporary",
+    "has_balcony",
+    "is_luxurious",
+    "is_zurich_city"
+  ],
+  "model_name": "RandomForest_v2",
+  "iteration": 2
+}

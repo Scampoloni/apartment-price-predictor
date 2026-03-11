@@ -47,6 +47,7 @@ from the listing data.
 | Geographic scope     | Canton of Zurich, Switzerland                       |
 | File                 | `original_apartment_data_analytics_hs24_with_lat_lon.csv` |
 | Rows (raw)           | 819 listings                                        |
+| Rows after cleaning  | 817 (2 removed: price outside CHF 200–25,000 range) |
 | Target range (raw)   | CHF 50 – 9,950 / month (outliers filtered in clean) |
 | Rooms range          | 1.0 – 8.5                                           |
 | Area range           | 8 – 300 m²                                          |
@@ -154,7 +155,7 @@ Implemented in `src/features.py`:
 | Setting          | Value                              |
 |------------------|------------------------------------|
 | Features         | `rooms`, `area`                    |
-| Categorical      | *(none)*                           |
+| Categorical      | `municipality`                     |
 | Scaling          | No                                 |
 | CV folds         | 5                                  |
 | Test split       | 20 %                               |

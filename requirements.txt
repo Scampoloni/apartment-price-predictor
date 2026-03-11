@@ -5,12 +5,11 @@ numpy>=1.24.0
 joblib>=1.3.0
 
 # Web application
-gradio>=4.0.0
+gradio>=6.0.0
 
-# Visualisation (optional, used in notebooks & evaluate.py)
-matplotlib>=3.7.0
-seaborn>=0.12.0
-
-# Notebook support (optional)
-jupyter>=1.0.0
-ipykernel>=6.0.0
+# Visualisation — used in training/notebooks, not needed for inference
+# Uncomment if you run src.train or notebooks in this environment:
+# matplotlib>=3.7.0
+# seaborn>=0.12.0
+# jupyter>=1.0.0
+# ipykernel>=6.0.0
