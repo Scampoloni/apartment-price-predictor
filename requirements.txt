@@ -13,3 +13,5 @@ gradio>=6.0.0
 # seaborn>=0.12.0
 # jupyter>=1.0.0
 # ipykernel>=6.0.0
+
+# Pinned by HF deployment
