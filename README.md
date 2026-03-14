@@ -158,6 +158,18 @@ Implemented in `src/features.py`:
 ---
 
 ## Modeling Iterations
+### Task: Apartment Price Prediction (Regression)
+
+---
+
+### Summary of Iterative Process
+
+| Iteration | Objective | Key Changes | Models Used | CV RMSE mean (CHF) | CV Std Dev (CHF) | CV R² (mean) | Change in Performance | Fit Diagnosis |
+|-----------|-----------|-------------|-------------|---------------------|------------------|--------------|----------------------|----------------|
+| **1** | Build baseline model | - Basic cleaning<br>- Median imputation<br>- One-hot encoding (municipality)<br>- No scaling<br>- 5-fold CV | LinearRegression<br>RandomForest (n\_estimators=100) | 800 (RF)<br>880 (LR) | ±170 (RF)<br>±137 (LR) | 0.58 (RF)<br>0.48 (LR) | Baseline | ☑ Overfitting ☐ Underfitting ☐ Good Fit |
+| **2** | Improve RMSE via feature engineering & tuning | - Added `rooms_per_m2`<br>- 5 text-flag features from description<br>- `is_zurich_city` location flag<br>- StandardScaler (MLP only)<br>- Hyperparameter tuning<br>- 5-fold CV | RandomForest\_v2 (n\_estimators=200, max\_depth=15, min\_samples\_leaf=2)<br>MLPRegressor | 798 (RF)<br>886 (MLP) | ±164 (RF)<br>±168 (MLP) | 0.58 (RF)<br>0.47 (MLP) | −2 CHF RMSE (RF) | ☐ Overfitting ☐ Underfitting ☑ Good Fit |
+
+---
 
 ### Iteration 1 — Baseline
 
@@ -170,6 +182,10 @@ Implemented in `src/features.py`:
 | Scaling          | No                                 |
 | CV folds         | 5                                  |
 | Test split       | 20 %                               |
+
+**Hyperparameters (Iteration 1):**
+- LinearRegression: default (no regularisation)
+- RandomForest\_v1: n\_estimators=100, all other params default
 
 **Preprocessing (Iteration 1):**
 - Numeric (`rooms`, `area`): median imputation, no scaling
@@ -190,8 +206,8 @@ Implemented in `src/features.py`:
 | Setting          | Value                                               |
 |------------------|-----------------------------------------------------|
 | Features         | `rooms`, `area`, `rooms_per_m2`, location & text flags |
-| Categorical      | `municipality` (if applicable)                      |
-| Scaling          | Yes (for MLPRegressor inputs)                       |
+| Categorical      | `municipality`                                      |
+| Scaling          | Yes (StandardScaler for MLPRegressor inputs)        |
 | CV folds         | 5                                                   |
 | Test split       | 20 %                                                |
 
@@ -214,6 +230,34 @@ Implemented in `src/features.py`:
 >   `iteration`, `objective`, `models_used`, `best_model`, `changes_vs_previous`,
 >   `preprocessing_steps`, `hyperparameters`, `cv_rmse`, `cv_mae`, `cv_r2`,
 >   `holdout_rmse`, `holdout_mae`, `holdout_r2`, `n_features`, `features`
+
+---
+
+### Notes
+
+**Metrics:** RMSE (primary, CHF), MAE (CHF), R² — evaluated via 5-fold Cross-Validation + 20% holdout
+
+**Created Features (Iteration 2):**
+- `rooms_per_m2` — room density (rooms ÷ area); captures studio vs. family flat
+- `is_furnished` — furnished apartment flag extracted from listing description
+- `is_temporary` — Zwischenmiete / befristet flag → typically lower price
+- `has_balcony` — balcony mention flag; outdoor space is a value driver in ZH
+- `is_luxurious` — high-end keyword flag → upper price tail
+- `is_zurich_city` — City of Zurich municipality flag; city rents above cantonal average
+
+**Final Selected Features:**
+- `rooms`
+- `area`
+- `municipality` (`bfs_name`, one-hot encoded)
+- `rooms_per_m2`
+- `is_furnished`
+- `is_temporary`
+- `has_balcony`
+- `is_luxurious`
+- `is_zurich_city`
+
+**Reason for Selection:**
+Chosen based on domain knowledge, feature importance analysis, and cross-validation performance. The engineered features in Iteration 2 provided a marginal RMSE improvement (800 → 798 CHF CV RMSE). RandomForestRegressor outperformed all alternatives across both iterations. MLPRegressor underperformed on this dataset size (886 CHF CV RMSE) despite StandardScaler preprocessing. LinearRegression served as a useful lower-bound baseline.
 
 ---
 
