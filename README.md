@@ -1,377 +1,141 @@
----
-title: Apartment Price Predictor
-emoji: 🦀
-colorFrom: indigo
-colorTo: gray
-sdk: gradio
-sdk_version: 6.9.0
-app_file: app.py
-pinned: false
----
+# ML Apartment Applications — Canton of Zurich
 
-# Apartment Price Predictor — Canton of Zurich
-
-> **Academic ML project** | scikit-learn · pandas · Gradio · Python 3.11+
-
-A regression model that estimates monthly rental prices for apartments
-in the canton of Zurich, with an interactive Gradio web interface deployable
-to [Hugging Face Spaces](https://huggingface.co/spaces).
+Two end-to-end machine learning applications built around apartment data:
+a **rental price predictor** (regression) and a **room type classifier** (computer vision).
+Both are deployed as interactive web apps on Hugging Face Spaces.
 
 ---
 
-## Table of Contents
+## Applications
 
-1. [Project Goal](#project-goal)
-2. [Dataset Overview](#dataset-overview)
-3. [Project Structure](#project-structure)
-4. [Preprocessing](#preprocessing)
-5. [Feature Engineering](#feature-engineering)
-6. [Modeling Iterations](#modeling-iterations)
-7. [Evaluation](#evaluation)
-8. [Final Selected Model](#final-selected-model)
-9. [Web Application](#web-application)
-10. [Local Setup](#local-setup)
-11. [Deployment to Hugging Face Spaces](#deployment-to-hugging-face-spaces)
+### 1. Apartment Price Predictor
+> Regression · scikit-learn · Gradio · Hugging Face Spaces
 
----
+Estimates the monthly gross rental price (CHF) for apartments in the Canton of Zurich
+based on size, location, and listing features.
 
-## Project Goal
+**Live demo:** [huggingface.co/spaces/Scampolonii/apartment-price-predictor](https://huggingface.co/spaces/Scampolonii/apartment-price-predictor)
 
-Predict the monthly gross rental price (CHF) for apartments listed in
-the canton of Zurich based on structural and location features extracted
-from the listing data.
+| Property | Value |
+|---|---|
+| Task | Regression |
+| Dataset | Canton of Zurich rental listings (819 rows, 112 municipalities) |
+| Best model | RandomForestRegressor |
+| CV RMSE | 798 CHF (±164) |
+| Holdout RMSE | 840 CHF |
+| R² | 0.58 |
 
-**Target variable:** `price` — monthly rent in CHF  
-**Task type:** Regression  
-**Primary metric:** RMSE (Root Mean Squared Error)
+**Features used:**
+- Numeric: `rooms`, `area`, `rooms_per_m2` (engineered)
+- Categorical: `municipality` (one-hot, 112 classes)
+- Binary flags extracted from listing text: `is_furnished`, `is_temporary`, `has_balcony`, `is_luxurious`, `is_zurich_city`
 
----
+**Modeling approach:**
+Two training iterations with cross-validation. Iteration 1 established a baseline (LinearRegression, RandomForest). Iteration 2 added feature engineering and hyperparameter tuning. RandomForest was selected as the final model in both iterations.
 
-## Dataset Overview
+| Iteration | Model | CV RMSE | CV R² |
+|---|---|---|---|
+| 1 — Baseline | RandomForest v1 | 800 CHF | 0.58 |
+| 1 — Baseline | LinearRegression | 880 CHF | 0.48 |
+| 2 — Improved | RandomForest v2 | **798 CHF** | **0.58** |
+| 2 — Improved | MLPRegressor | 886 CHF | 0.47 |
 
-**Working source file:** `data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv`  
-(Analytics HS24 dataset — canton of Zurich rental listings with coordinates)
-
-| Property             | Value                                               |
-|----------------------|-----------------------------------------------------|
-| Source               | Analytics HS24 course dataset                       |
-| Geographic scope     | Canton of Zurich, Switzerland                       |
-| File                 | `original_apartment_data_analytics_hs24_with_lat_lon.csv` |
-| Rows (raw)           | 819 listings                                        |
-| Rows after cleaning  | 817 (2 removed: price outside CHF 200–25,000 range) |
-| Target range (raw)   | CHF 50 – 9,950 / month (outliers filtered in clean) |
-| Rooms range          | 1.0 – 8.5                                           |
-| Area range           | 8 – 300 m²                                          |
-| Unique municipalities| 112 (`town` + `bfs_name` columns)                  |
-| Coordinates          | WGS-84 `lat`/`lon` + Swiss LV95 `x`/`y`            |
-
-**Column mapping** (handled automatically by `data_loader.standardize_columns()`):
-
-| CSV column        | Canonical name   | Type        | Used in model         |
-|-------------------|------------------|-------------|-----------------------|
-| `price`           | `price`          | numeric     | Target variable       |
-| `rooms`           | `rooms`          | numeric     | Feature (iter 1 & 2)  |
-| `area`            | `area`           | numeric     | Feature (iter 1 & 2)  |
-| `bfs_name`        | `municipality`   | categorical | Feature (iter 1 & 2)  |
-| `description_raw` | `descriptionraw` | text        | Flag extraction (iter 2) |
-| `lat`, `lon`      | *(unchanged)*    | numeric     | Not used (available for future extension) |
-| `pop_dens`, `tax_income` | *(unchanged)* | numeric | Not used (available for future extension) |
-| `town`, `postalcode`, `address`, `bfs_number`, `pop`, `frg_pct`, `emp`, `x`, `y` | — | — | Passthrough / unused |
-
-> `bfs_name` is preferred over `town` as the municipality column because it uses the
-> official BFS name format (e.g. "Rüti (ZH)") which is cleaner for one-hot encoding.
-> Both `bfs_name` and `town` appear before `address` in `CANDIDATE_LOCATION_COLS`
-> so that the full street address is never accidentally used as a location feature.
+**Stack:** Python · scikit-learn · pandas · Gradio
 
 ---
 
-## Project Structure
+### 2. Apartment Room Classifier
+> Computer Vision · Transfer Learning · ViT · CLIP · GPT-4o · Hugging Face Spaces
+
+Classifies apartment room images into 8 categories and compares three model approaches:
+fine-tuned ViT, zero-shot CLIP, and GPT-4o.
+
+**Live demo:** [huggingface.co/spaces/Scampolonii/apartment-room-classifier](https://huggingface.co/spaces/Scampolonii/apartment-room-classifier)  
+**Trained model:** [huggingface.co/Scampolonii/vit-apartment-rooms](https://huggingface.co/Scampolonii/vit-apartment-rooms)
+
+| Property | Value |
+|---|---|
+| Task | Multi-class image classification (8 classes) |
+| Dataset | MIT Indoor Scenes — 8 apartment-relevant classes, ~15,571 images |
+| Base model | `google/vit-base-patch16-224` |
+| Training strategy | Transfer learning — only classifier head trained |
+| Trainable parameters | 4,614 out of 85,803,270 |
+| Test accuracy | **90.16%** |
+
+**Classes:** `bathroom` · `bedroom` · `children's room` · `corridor` · `dining room` · `kitchen` · `living room` · `nursery`
+
+**Model comparison (8 example images):**
+
+| Model | Type | Accuracy | Notes |
+|---|---|---|---|
+| Fine-tuned ViT | Transfer learning | 4/8 (50%) | Strong on training distribution; weaker on atypical images |
+| CLIP zero-shot | Open-source zero-shot | 6/8 (75%) | Good generalization without any fine-tuning |
+| GPT-4o | Closed-source LLM | 8/8 (100%) | Best results; contextual understanding |
+
+**Stack:** Python · PyTorch · HuggingFace Transformers · CLIP · OpenAI API · Gradio
+
+---
+
+## Repository Structure
 
 ```
 apartment-price-predictor/
-├── app.py                  # Gradio web interface
-├── requirements.txt        # Python dependencies
-├── README.md               # This file
-├── .gitignore
 │
-├── data/
-│   ├── raw/                # Original dataset (not committed)
-│   └── processed/          # Cleaned/transformed outputs
+├── app.py                  # Price predictor — Gradio web interface
+├── requirements.txt        # Price predictor dependencies
+│
+├── src/                    # Price predictor source package
+│   ├── config.py           # Paths, column names, hyperparameters
+│   ├── data_loader.py      # Data loading & cleaning
+│   ├── features.py         # Feature engineering
+│   ├── preprocessing.py    # sklearn ColumnTransformer
+│   ├── train.py            # Training entry point
+│   ├── evaluate.py         # Metrics & CV evaluation
+│   └── predict.py          # Inference module
 │
 ├── models/
-│   ├── pipeline.joblib     # Saved sklearn Pipeline (generated by train.py)
-│   └── feature_names.json  # Feature list snapshot
+│   ├── pipeline.joblib     # Trained sklearn pipeline
+│   └── metadata.json       # Model metrics snapshot
 │
 ├── results/
-│   ├── figures/            # Plots (residuals, feature importance, …)
 │   └── tables/
-│       ├── cv_results.csv          # Raw CV scores (all folds, all models)
-│       ├── model_comparison.csv    # All models × iterations, CV + holdout metrics
-│       └── iterations.csv          # One row per iteration — submission-ready summary
+│       ├── model_comparison.csv   # All models × iterations
+│       └── iterations.csv         # Summary per iteration
 │
-├── notebooks/              # Exploratory notebooks (EDA, sanity checks)
-│
-└── src/
-    ├── __init__.py
-    ├── config.py           # Central paths, column names, feature lists
-    ├── data_loader.py      # Load raw data, validate columns, basic cleaning
-    ├── features.py         # Feature engineering functions
-    ├── preprocessing.py    # sklearn ColumnTransformer builder
-    ├── train.py            # Training entry point (iterations 1 & 2)
-    ├── evaluate.py         # Metrics, CV, result persistence
-    ├── predict.py          # Inference: load artifacts, predict_price()
-    └── utils.py            # Shared utilities
-```
-
----
-
-## Preprocessing
-
-Handled inside the scikit-learn `Pipeline` via `ColumnTransformer`
-(see `src/preprocessing.py`):
-
-| Feature type      | Steps                                    |
-|-------------------|------------------------------------------|
-| Numeric           | Median imputation → (optional) StandardScaler |
-| Categorical       | Mode imputation → OneHotEncoder (unknown=ignore) |
-| Binary flags      | Constant imputation (fill=0)             |
-
-The same `ColumnTransformer` object is fitted on the training set and
-serialised inside the pipeline artifact, so inference is **guaranteed**
-to apply identical transformations without any data leakage.
-
----
-
-## Feature Engineering
-
-Implemented in `src/features.py`:
-
-| Feature          | Type    | Source       | Justification                           |
-|------------------|---------|--------------|-----------------------------------------|
-| `rooms_per_m2`   | numeric | rooms / area | Captures room density (studio vs family flat) |
-| `is_furnished`   | binary  | description  | Furnished apartments command a premium  |
-| `is_temporary`   | binary  | description  | Zwischenmiete / befristet → lower price |
-| `has_balcony`    | binary  | description  | Outdoor space is a value driver in ZH   |
-| `is_luxurious`   | binary  | description  | High-end keyword → upper price tail     |
-| `is_zurich_city` | binary  | municipality | City of Zurich rents above cantonal avg |
-
----
-
-## Modeling Iterations
-### Task: Apartment Price Prediction (Regression)
-
----
-
-### Summary of Iterative Process
-
-| Iteration | Objective | Key Changes | Models Used | CV RMSE mean (CHF) | CV Std Dev (CHF) | CV R² (mean) | Change in Performance | Fit Diagnosis |
-|-----------|-----------|-------------|-------------|---------------------|------------------|--------------|----------------------|----------------|
-| **1** | Build baseline model | - Basic cleaning<br>- Median imputation<br>- One-hot encoding (municipality)<br>- No scaling<br>- 5-fold CV | LinearRegression<br>RandomForest (n\_estimators=100) | 800 (RF)<br>880 (LR) | ±170 (RF)<br>±137 (LR) | 0.58 (RF)<br>0.48 (LR) | Baseline | ☑ Overfitting ☐ Underfitting ☐ Good Fit |
-| **2** | Improve RMSE via feature engineering & tuning | - Added `rooms_per_m2`<br>- 5 text-flag features from description<br>- `is_zurich_city` location flag<br>- StandardScaler (MLP only)<br>- Hyperparameter tuning<br>- 5-fold CV | RandomForest\_v2 (n\_estimators=200, max\_depth=15, min\_samples\_leaf=2)<br>MLPRegressor | 798 (RF)<br>886 (MLP) | ±164 (RF)<br>±168 (MLP) | 0.58 (RF)<br>0.47 (MLP) | −2 CHF RMSE (RF) | ☐ Overfitting ☐ Underfitting ☑ Good Fit |
-
----
-
-### Iteration 1 — Baseline
-
-**Goal:** Establish a performance floor with minimal features and simple models.
-
-| Setting          | Value                              |
-|------------------|------------------------------------|
-| Features         | `rooms`, `area`                    |
-| Categorical      | `municipality`                     |
-| Scaling          | No                                 |
-| CV folds         | 5                                  |
-| Test split       | 20 %                               |
-
-**Hyperparameters (Iteration 1):**
-- LinearRegression: default (no regularisation)
-- RandomForest\_v1: n\_estimators=100, all other params default
-
-**Preprocessing (Iteration 1):**
-- Numeric (`rooms`, `area`): median imputation, no scaling
-- Categorical (`municipality`): mode imputation → OneHotEncoder (handle_unknown=ignore)
-- 80/20 random train/test split; preprocessing fitted on training set only
-
-**Models compared:**
-
-| Model                | CV RMSE (CHF) | CV RMSE (±) | CV MAE (CHF) | CV R²  | Holdout RMSE |
-|----------------------|---------------|-------------|--------------|--------|--------------|
-| LinearRegression     | 880           | ± 137       | 560          | 0.48   | —            |
-| RandomForest\_v1    | **800**       | ± 170       | **516**      | **0.58** | **845 CHF** |
-
-### Iteration 2 — Improved
-
-**Goal:** Improve RMSE by adding engineered features and tuning hyperparameters.
-
-| Setting          | Value                                               |
-|------------------|-----------------------------------------------------|
-| Features         | `rooms`, `area`, `rooms_per_m2`, location & text flags |
-| Categorical      | `municipality`                                      |
-| Scaling          | Yes (StandardScaler for MLPRegressor inputs)        |
-| CV folds         | 5                                                   |
-| Test split       | 20 %                                                |
-
-**Preprocessing (Iteration 2):**
-- Numeric (`rooms`, `area`, `rooms_per_m2`): median imputation; StandardScaler applied where required (MLPRegressor)
-- Categorical (`municipality`): mode imputation → OneHotEncoder (handle_unknown=ignore)
-- Binary flags (`is_furnished`, `is_temporary`, `has_balcony`, `is_luxurious`, `is_zurich_city`): constant imputation (fill=0)
-- Same 80/20 split as Iteration 1; preprocessing fitted on training set only
-
-**Models compared:**
-
-| Model            | CV RMSE (CHF) | CV RMSE (±) | CV MAE (CHF) | CV R²  | Holdout RMSE |
-|------------------|---------------|-------------|--------------|--------|--------------|
-| RandomForest\_v2 | **798**       | ± 164       | **515**      | **0.58** | **840 CHF** |
-| MLPRegressor     | 886           | ± 168       | 578          | 0.47   | —            |
-
-> Results populated automatically by `python -m src.train --iteration N`.
-> - `results/tables/model_comparison.csv` — all models, both iterations (CV + holdout)
-> - `results/tables/iterations.csv` — one summary row per iteration with columns:
->   `iteration`, `objective`, `models_used`, `best_model`, `changes_vs_previous`,
->   `preprocessing_steps`, `hyperparameters`, `cv_rmse`, `cv_mae`, `cv_r2`,
->   `holdout_rmse`, `holdout_mae`, `holdout_r2`, `n_features`, `features`
-
----
-
-### Notes
-
-**Metrics:** RMSE (primary, CHF), MAE (CHF), R² — evaluated via 5-fold Cross-Validation + 20% holdout
-
-**Created Features (Iteration 2):**
-- `rooms_per_m2` — room density (rooms ÷ area); captures studio vs. family flat
-- `is_furnished` — furnished apartment flag extracted from listing description
-- `is_temporary` — Zwischenmiete / befristet flag → typically lower price
-- `has_balcony` — balcony mention flag; outdoor space is a value driver in ZH
-- `is_luxurious` — high-end keyword flag → upper price tail
-- `is_zurich_city` — City of Zurich municipality flag; city rents above cantonal average
-
-**Final Selected Features:**
-- `rooms`
-- `area`
-- `municipality` (`bfs_name`, one-hot encoded)
-- `rooms_per_m2`
-- `is_furnished`
-- `is_temporary`
-- `has_balcony`
-- `is_luxurious`
-- `is_zurich_city`
-
-**Reason for Selection:**
-Chosen based on domain knowledge, feature importance analysis, and cross-validation performance. The engineered features in Iteration 2 provided a marginal RMSE improvement (800 → 798 CHF CV RMSE). RandomForestRegressor outperformed all alternatives across both iterations. MLPRegressor underperformed on this dataset size (886 CHF CV RMSE) despite StandardScaler preprocessing. LinearRegression served as a useful lower-bound baseline.
-
----
-
-## Evaluation
-
-- **Primary metric:** RMSE — penalises large errors, same unit as rent (CHF).
-- **Secondary metrics:** MAE (interpretable in CHF), R² (goodness of fit).
-- **Method:** 5-fold cross-validation on the training split,
-  followed by a single holdout evaluation on the 20 % test split.
-- **Anti-leakage:** Preprocessing fitted only on the training folds;
-  test set never seen during model selection.
-
----
-
-## Final Selected Model
-
-| Property             | Value                                          |
-|----------------------|------------------------------------------------|
-| Model class          | `RandomForestRegressor`                        |
-| Iteration            | 2                                              |
-| Key hyperparameters  | n\_estimators=200, max\_depth=15, min\_samples\_leaf=2, max\_features=sqrt |
-| CV RMSE (mean)       | 798 CHF                                        |
-| CV MAE  (mean)       | 515 CHF                                        |
-| CV R²   (mean)       | 0.58                                           |
-| Holdout RMSE         | 840 CHF                                        |
-| Holdout MAE          | 504 CHF                                        |
-| Holdout R²           | 0.56                                           |
-| Artifact path        | `models/pipeline.joblib`                       |
-
-**Why this model was selected over the alternatives:**  
-RandomForest\_v2 achieved the lowest CV RMSE (798 CHF) and holdout RMSE (840 CHF) across both iterations and all four models. Adding engineered features in Iteration 2 gave a marginal improvement over Iteration 1's RandomForest\_v1 (800 → 798 CHF CV RMSE; 845 → 840 CHF holdout RMSE) while the MLPRegressor underperformed on this dataset size (886 CHF CV RMSE). LinearRegression provided a useful lower-bound baseline. The tree-based model is also more interpretable and requires no feature scaling.
-
----
-
-## Web Application
-
-Built with [Gradio](https://gradio.app).  
-The app exposes a simple form:
-
-- **Number of rooms** (e.g. 3.5)
-- **Living area in m²** (e.g. 80)
-- **Municipality** (optional free text)
-- **Description keywords** (optional — extracts furnished / balcony / luxury flags)
-
-The app calls `src.predict.predict_price()` which internally applies the
-same feature engineering and preprocessing the model was trained with.
-
-**Example output:**
-```
-Estimated Monthly Rent
-
-CHF 2,450
-
-Estimate from trained scikit-learn pipeline. For indicative purposes only.
+└── cv_app/                 # Room classifier (separate app)
+    ├── app.py              # Classifier — Gradio web interface
+    ├── requirements.txt    # Classifier dependencies
+    ├── README.md           # Detailed classifier documentation
+    └── examples/           # 8 example room images
 ```
 
 ---
 
 ## Local Setup
 
+### Price Predictor
+
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Scampoloni/apartment-price-predictor
 cd apartment-price-predictor
-
-# 2. Create a virtual environment (Python 3.11+)
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-
-# 3. Install dependencies
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 4. Place your dataset
-#    The project expects the HS24 dataset at:
-#      data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv
-#    No renaming needed — RAW_DATA_FILE in src/config.py already points here.
-#    If you use a different file, update RAW_DATA_FILE in src/config.py and
-#    add any new column name variants to the CANDIDATE_*_COLS lists.
+# Place dataset at: data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv
+python -m src.train --iteration 1
+python -m src.train --iteration 2
+python app.py  # → http://localhost:7860
+```
 
-# 5. (Optional) Inspect the data loading
-python -m src.data_loader
+### Room Classifier
 
-# 6. Train the models
-python -m src.train --iteration 1   # Baseline  (LinearRegression + RandomForest)
-python -m src.train --iteration 2   # Improved  (RandomForest + MLPRegressor)
-                                    # → saves models/pipeline.joblib
-
-# 7. Review results tables
-#    results/tables/model_comparison.csv  — all models, both iterations
-#    results/tables/iterations.csv        — one row per iteration (summary)
-
-# 8. Launch the app
-python app.py
-#    Open http://localhost:7860
+```bash
+cd cv_app
+pip install -r requirements.txt
+# Set OPENAI_API_KEY environment variable
+python app.py  # → http://localhost:7860
 ```
 
 ---
 
-## Deployment to Hugging Face Spaces
-
-**Live demo:** [https://huggingface.co/spaces/Scampolonii/apartment-price-predictor](https://huggingface.co/spaces/Scampolonii/apartment-price-predictor)
-
-1. Create a new Space on [huggingface.co/spaces](https://huggingface.co/spaces)
-   — choose **SDK: Gradio**, Python 3.11.
-2. Push this repository (including the trained `models/` directory) to the Space:
-   ```bash
-   git remote add space https://huggingface.co/spaces/<your-username>/<space-name>
-   git push space main
-   ```
-3. The Space will install `requirements.txt` and run `app.py` automatically.
-4. **Note:** Do not commit raw data. Only `models/pipeline.joblib`,
-   `models/feature_names.json`, and `models/metadata.json` are needed for inference.
-
----
-
-*Generated as part of an academic ML exercise — Machine Learning Applications,
-Canton of Zurich apartment rental price prediction.*
+*Academic ML project — Machine Learning Applications & Computer Vision, University course HS24/25.*
