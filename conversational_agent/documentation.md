@@ -13,8 +13,7 @@ Die App nimmt einen deutschen Freitext-Wohnungswunsch entgegen und extrahiert da
 
 | File | Purpose |
 |------|---------|
-| `app.py` | Vollständige Gradio-App mit allen 6 implementierten Funktionen |
-| `app_student.py` | Original-Template (TODOs, nicht deployed) |
+| `app.py` | Vollständige Gradio-App mit allen implementierten Funktionen |
 | `random_forest_regression.pkl` | Vortrainiertes Regressionsmodell (7 Features) |
 | `bfs_municipality_and_tax_data.csv` | BFS-Gemeindedaten (Bevölkerung, Steuern, Dichte, etc.) |
 | `requirements.txt` | Python-Abhängigkeiten |
@@ -87,6 +86,7 @@ Das LLM soll das Vorhersageergebnis in 2-3 Sätzen auf Deutsch erklären und dab
 - JSON-Output erzwungen (`{"answer": "..."}`)
 - Explizites Verbot eigener Preisberechnungen
 - Deutsche Ausgabe verlangt
+- Unsicherheitshinweis verpflichtend
 
 ### 5.3 Expected Output Format
 
@@ -113,9 +113,9 @@ Das LLM soll das Vorhersageergebnis in 2-3 Sätzen auf Deutsch erklären und dab
 
 | Test Input | Extraktion korrekt? | Vorhersage zurückgegeben? | Erklärung zurückgegeben? | Anmerkungen |
 |------------|---------------------|--------------------------|--------------------------|-------------|
-| `Ich suche eine 3.5-Zimmer-Wohnung mit 85 m² in Winterthur.` | Ja | Ja | Ja | Standardfall, funktioniert zuverlässig |
-| `Kleine 2-Zimmer-Wohnung, ca. 50 Quadratmeter, ich würde gerne in Zürich wohnen.` | Ja | Ja | Ja | Zürich korrekt gemappt auf "Zürich" |
-| `Suche grosszügige 5.5-Zi-Wohnung mit Terrasse, etwa 140m2, Region Bern` | Ja | Ja | Ja | "Region Bern" → match auf "Bern" via contains-Matching |
+| `eine 2 zimmer wohnung in Zumikon mit 80m2` | Ja | Ja | Ja | Informeller Input ohne vollständigen Satz — korrekt verarbeitet |
+| `eine 3 zimmer wohnung in Uster mit 80m2` | Ja | Ja | Ja | Uster korrekt gemappt, CHF 2096 geschätzt |
+| `Kleine 2-Zimmer-Wohnung, ca. 50 Quadratmeter, ich würde gerne in Zürich wohnen.` | Ja | Ja | Ja | Zürich korrekt gemappt |
 | `Wohnung in Musterstadt` | Ja (rooms/area null) | Nein | Nein | Fehlende Felder → freundliche Fehlermeldung |
 | `3 Zimmer, 70m2, Luzern` | Ja | Ja | Ja | Kurze Eingabe ohne vollständigen Satz |
 
@@ -123,16 +123,16 @@ Das LLM soll das Vorhersageergebnis in 2-3 Sätzen auf Deutsch erklären und dab
 
 ## 8. Errors and Problems
 
-**Problem:** LLM gibt JSON mit Markdown-Fences zurück (` ```json ... ``` `)
-**Ursache:** Manche GPT-Modelle ignorieren die "kein Markdown"-Anweisung
+**Problem:** LLM gibt JSON mit Markdown-Fences zurück (` ```json ... ``` `)  
+**Ursache:** Manche GPT-Modelle ignorieren die "kein Markdown"-Anweisung  
 **Fix:** `parse_json_response()` strippt ` ``` ` und `json`-Prefix vor dem Parsen
 
-**Problem:** `random_forest_regression.pkl` nicht im Kurs-Repo vorhanden
-**Ursache:** Datei wird im Notebook generiert und nicht committed
-**Fix:** Notebook aus dem Kurs ausführen → `.pkl` lokal erstellen → in Space hochladen
+**Problem:** Deployment schlug initial fehl wegen fehlendem `openai`-Modul  
+**Ursache:** `requirements.txt` enthielt noch `google-genai` statt `openai`  
+**Fix:** `requirements.txt` auf `openai>=1.0.0` aktualisiert und neu deployed
 
-**Problem:** Ortsnamen wie "Zürich" vs. "Zürich (Kreis 1)" nicht eindeutig
-**Ursache:** BFS-Daten enthalten mehrere Einträge pro Stadt (Kreise)
+**Problem:** Ortsnamen wie "Zürich" vs. "Zürich (Kreis 1)" nicht eindeutig  
+**Ursache:** BFS-Daten enthalten mehrere Einträge pro Stadt (Kreise)  
 **Fix:** `match_town()` gibt bei erstem `contains`-Match zurück → meistens korrekte Hauptgemeinde
 
 ---
@@ -155,18 +155,17 @@ Das LLM soll das Vorhersageergebnis in 2-3 Sätzen auf Deutsch erklären und dab
 
 ### 9.3 Deployment Result
 
-_Nach Deployment ausfüllen._
+Der Space läuft erfolgreich auf Hugging Face. Die App startet automatisch nach dem Hochladen der Dateien und dem Setzen des API-Keys als Secret. Alle drei Ausgaben (JSON, Preis, Erklärung) werden korrekt angezeigt.
 
 ### 9.4 Screenshots
 
-_2 Screenshots nach dem Deployment hier einfügen:_
-
-```md
 ![Beispiel 1](screenshot1.png)
-![Beispiel 2](screenshot2.png)
-```
 
-_Kurze Beschreibung je Screenshot (1-2 Sätze) hier einfügen._
+Eingabe: *"eine 2 zimmer wohnung in Zumikon mit 80m2"* — Das LLM extrahiert korrekt `rooms: 2`, `area_m2: 80`, `town: Zumikon`. Das Modell schätzt CHF 2863/Monat. Die Erklärung erwähnt Marktentwicklung und Mikrolage als Unsicherheitsfaktoren.
+
+![Beispiel 2](screenshot2.png)
+
+Eingabe: *"eine 3 zimmer wohnung in Uster mit 80m2"* — Das LLM extrahiert korrekt `rooms: 3`, `area_m2: 80`, `town: Uster`. Das Modell schätzt CHF 2096/Monat. Die günstigere Schätzung gegenüber Zumikon reflektiert die unterschiedlichen Gemeindedaten (Steuern, Dichte).
 
 ---
 
