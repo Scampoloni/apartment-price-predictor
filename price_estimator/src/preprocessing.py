@@ -12,6 +12,9 @@ Usage pattern:
         scale_numeric=config["scale"],
     )
     pipeline = Pipeline([("preprocessor", preprocessor), ("model", estimator)])
+Preprocessing objects are placed inside the estimator pipeline and are fitted
+only after a train/test split. This prevents imputation and category discovery
+from learning anything from held-out rows.
 """
 
 from typing import List, Optional

@@ -1,0 +1,9 @@
+{
+  "model": "openai/clip-vit-large-patch14",
+  "model_revision": "32bd64288804d66eefd0ccbe215aa642df71cc41",
+  "quantitative_test_evaluation_completed": false,
+  "reason": "Not computationally practical in the available CPU-only environment after the ViT pass required a long model-transfer and inference run. The CLIP checkpoint is substantially larger and was not already cached.",
+  "same_test_evaluator_available": "python -m room_classifier.evaluate --include-clip",
+  "claim_policy": "No full-test CLIP accuracy, macro F1, per-class metric, or confusion matrix is claimed.",
+  "gpt4o_api_calls_made_during_repository_audit": 0
+}

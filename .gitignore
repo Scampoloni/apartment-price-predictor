@@ -25,17 +25,20 @@ ENV/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
+# Local working copies retained during the audit (not repository artifacts)
+/notebook_training(1).ipynb
+/conversational_agent/doc/
+
 # Data — never commit raw data to version control
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
-# Trained model artifacts — committed so Hugging Face Spaces can serve the app.
-# models/*.joblib  ← intentionally NOT ignored
-# models/*.json    ← intentionally NOT ignored
-models/*.pkl
-!models/.gitkeep
+# Trained price artifacts are intentionally committed through Git LFS.
+# Ad-hoc pickle files elsewhere are ignored to prevent stale duplicate models.
+*.pkl
+!price_estimator/models/.gitkeep
 
 # Results
 results/figures/*

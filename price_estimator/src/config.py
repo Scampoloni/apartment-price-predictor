@@ -6,8 +6,9 @@ live here so every other module imports from one place.
 
 from pathlib import Path
 
-# ── Project root (two levels up from this file) ────────────────────────────────
-ROOT_DIR = Path(__file__).resolve().parent.parent
+# ── Project and application roots ─────────────────────────────────────────────
+APP_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = APP_DIR.parent
 
 # ── Data paths ─────────────────────────────────────────────────────────────────
 DATA_DIR = ROOT_DIR / "data"
@@ -19,13 +20,13 @@ PROCESSED_DATA_DIR = DATA_DIR / "processed"
 RAW_DATA_FILE = RAW_DATA_DIR / "original_apartment_data_analytics_hs24_with_lat_lon.csv"
 
 # ── Model / artifact paths ─────────────────────────────────────────────────────
-MODELS_DIR = ROOT_DIR / "models"
+MODELS_DIR = APP_DIR / "models"
 MODEL_ARTIFACT = MODELS_DIR / "pipeline.joblib"
 FEATURE_NAMES_ARTIFACT = MODELS_DIR / "feature_names.json"
 MODEL_METADATA_ARTIFACT = MODELS_DIR / "metadata.json"  # stores metrics + feature list
 
 # ── Results paths ──────────────────────────────────────────────────────────────
-RESULTS_DIR = ROOT_DIR / "results"
+RESULTS_DIR = ROOT_DIR / "results" / "price_estimator"
 FIGURES_DIR = RESULTS_DIR / "figures"
 TABLES_DIR = RESULTS_DIR / "tables"
 CV_RESULTS_FILE = TABLES_DIR / "cv_results.csv"

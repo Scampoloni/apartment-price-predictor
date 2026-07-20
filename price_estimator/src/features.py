@@ -22,7 +22,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-from src.config import DESCRIPTION_COLUMN, LOCATION_COLUMN
+from price_estimator.src.config import DESCRIPTION_COLUMN, LOCATION_COLUMN
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ def add_rooms_per_m2(df: pd.DataFrame) -> pd.DataFrame:
     Captures "room density": a studio of 30 m² has a very different density
     than a 4-room flat of 30 m².  Helps the model distinguish these cases.
 
-    TODO: Verify that your dataset uses 'rooms' and 'area' as column names.
+    Column aliases are standardized before this function is called.
     """
     df = df.copy()
     if "rooms" in df.columns and "area" in df.columns:
@@ -65,7 +65,8 @@ def add_rooms_per_m2(df: pd.DataFrame) -> pd.DataFrame:
 def add_furnished_flag(df: pd.DataFrame) -> pd.DataFrame:
     """Add is_furnished = 1 if the description mentions furnished / möbliert.
 
-    Furnished apartments command a rent premium of ~15–30 % in Switzerland.
+    This flag lets the model estimate any association present in the sample;
+    no fixed premium is assumed.
     """
     df = df.copy()
     if DESCRIPTION_COLUMN in df.columns:
@@ -82,8 +83,8 @@ def add_furnished_flag(df: pd.DataFrame) -> pd.DataFrame:
 def add_temporary_flag(df: pd.DataFrame) -> pd.DataFrame:
     """Add is_temporary = 1 if the listing is advertised as short-term / befristet.
 
-    Temporary rentals (Zwischenmiete, Untermiete) typically have lower or
-    artificially constrained prices.
+    The flag records how the listing is marketed; it does not impose a price
+    direction.
     """
     df = df.copy()
     if DESCRIPTION_COLUMN in df.columns:
@@ -100,7 +101,7 @@ def add_temporary_flag(df: pd.DataFrame) -> pd.DataFrame:
 def add_balcony_flag(df: pd.DataFrame) -> pd.DataFrame:
     """Add has_balcony = 1 if the description mentions a balcony or terrace.
 
-    Outdoor space is a well-known value driver in Swiss apartment markets.
+    The flag records an explicitly advertised listing attribute.
     """
     df = df.copy()
     if DESCRIPTION_COLUMN in df.columns:
@@ -114,8 +115,7 @@ def add_balcony_flag(df: pd.DataFrame) -> pd.DataFrame:
 def add_luxurious_flag(df: pd.DataFrame) -> pd.DataFrame:
     """Add is_luxurious = 1 if the description contains luxury-segment keywords.
 
-    Targets the upper price tail; prevents average models from under-pricing
-    high-end listings.
+    The flag records high-end marketing language without assuming a premium.
     """
     df = df.copy()
     if DESCRIPTION_COLUMN in df.columns:

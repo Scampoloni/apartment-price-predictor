@@ -2,8 +2,8 @@
 
 Supports two modeling iterations, each selectable via CLI:
 
-  python -m src.train --iteration 1   # Baseline: LinearRegression + RandomForest
-  python -m src.train --iteration 2   # Improved:  RandomForest + MLPRegressor
+  python -m price_estimator.src.train --iteration 1
+  python -m price_estimator.src.train --iteration 2
 
 Each iteration:
 1. Loads and cleans data/raw/apartments.csv.
@@ -28,18 +28,24 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 
-from src.config import (
+from price_estimator.src.config import (
     CV_FOLDS,
     FEATURE_NAMES_ARTIFACT,
     MODEL_ARTIFACT,
     MODEL_METADATA_ARTIFACT,
     MODELS_DIR,
     RANDOM_STATE,
+    RESULTS_DIR,
     TARGET_COLUMN,
     TEST_SIZE,
 )
-from src.data_loader import basic_clean, load_raw_data, standardize_columns
-from src.evaluate import (
+from price_estimator.src.analysis import (
+    build_error_analysis,
+    evaluate_geographic_group_kfold,
+    save_evaluation_artifacts,
+)
+from price_estimator.src.data_loader import basic_clean, load_raw_data, standardize_columns
+from price_estimator.src.evaluate import (
     cross_validate_model,
     evaluate_on_holdout,
     print_model_comparison,
@@ -47,12 +53,12 @@ from src.evaluate import (
     save_iterations_csv,
     save_model_comparison_csv,
 )
-from src.features import (
+from price_estimator.src.features import (
     engineer_all_features,
     engineer_baseline_features,
     get_feature_lists,
 )
-from src.preprocessing import build_preprocessor
+from price_estimator.src.preprocessing import build_preprocessor
 
 
 # ── Explicit hyperparameter dictionaries ──────────────────────────────────────
@@ -228,6 +234,64 @@ def train_iteration(iteration: int) -> None:
     print(f"         MAE  : {holdout['mae']:.0f} CHF")
     print(f"         R²   : {holdout['r2']:.4f}")
 
+    # ── 6b. Geographic generalisation + residual analysis ────────────────────
+    geographic_holdout = None
+    if iteration == 2 and "municipality" in X.columns:
+        geographic_holdout, _ = evaluate_geographic_group_kfold(
+            best_pipeline,
+            X,
+            y,
+            group_column="municipality",
+            n_splits=5,
+        )
+        print("\n[train] Municipality holdout results:")
+        print(f"         RMSE : {geographic_holdout['rmse']:.0f} CHF")
+        print(f"         MAE  : {geographic_holdout['mae']:.0f} CHF")
+        print(f"         R²   : {geographic_holdout['r2']:.4f}")
+        print(
+            "         Held out "
+            f"{geographic_holdout['n_splits']} municipality-disjoint folds "
+            f"covering all {geographic_holdout['n_observations']} rows"
+        )
+
+        random_predictions = best_pipeline.predict(X_test)
+        random_residuals = X_test.copy()
+        random_residuals["actual_price_chf"] = y_test.to_numpy()
+        random_residuals["predicted_price_chf"] = random_predictions
+        random_residuals["residual_chf"] = y_test.to_numpy() - random_predictions
+        random_residuals["absolute_error_chf"] = random_residuals[
+            "residual_chf"
+        ].abs()
+        subgroup_metrics, largest_residuals = build_error_analysis(
+            random_residuals,
+            X_train["municipality"].value_counts(),
+        )
+        evaluation_summary = {
+            "dataset": {
+                "raw_rows": int(len(df_raw)),
+                "usable_rows": int(len(df)),
+                "municipalities": int(X["municipality"].nunique(dropna=False)),
+                "geographic_scope": "Canton of Zurich only",
+            },
+            "random_holdout": {
+                **holdout,
+                "n_train": int(len(X_train)),
+                "n_test": int(len(X_test)),
+                "random_state": RANDOM_STATE,
+                "test_fraction": TEST_SIZE,
+                "municipality_overlap_expected": True,
+            },
+            "municipality_group_kfold": geographic_holdout,
+            "subgroup_minimum_n": 20,
+            "error_analysis_split": "random_holdout",
+        }
+        save_evaluation_artifacts(
+            RESULTS_DIR,
+            summary=evaluation_summary,
+            subgroup_metrics=subgroup_metrics,
+            largest_residuals=largest_residuals,
+        )
+
     # ── 7. Save model_comparison.csv  (all models, both iterations) ───────────
     for record in cv_records:
         record["iteration"] = iteration
@@ -285,6 +349,38 @@ def train_iteration(iteration: int) -> None:
             "holdout_rmse":       round(holdout["rmse"], 1),
             "holdout_mae":        round(holdout["mae"], 1),
             "holdout_r2":         round(holdout["r2"], 4),
+            "random_holdout": {
+                "rmse": round(holdout["rmse"], 1),
+                "mae": round(holdout["mae"], 1),
+                "r2": round(holdout["r2"], 4),
+                "n_train": int(len(X_train)),
+                "n_test": int(len(X_test)),
+            },
+            "geographic_evaluation": (
+                {
+                    **geographic_holdout,
+                    "rmse": round(geographic_holdout["rmse"], 1),
+                    "mae": round(geographic_holdout["mae"], 1),
+                    "r2": round(geographic_holdout["r2"], 4),
+                }
+                if geographic_holdout
+                else None
+            ),
+            "dataset": {
+                "raw_rows": int(len(df_raw)),
+                "usable_rows": int(len(df)),
+                "municipalities": int(
+                    X["municipality"].nunique(dropna=False)
+                )
+                if "municipality" in X.columns
+                else None,
+                "geographic_scope": "Canton of Zurich only",
+            },
+            "known_municipalities": (
+                sorted(X["municipality"].dropna().astype(str).unique().tolist())
+                if "municipality" in X.columns
+                else []
+            ),
             # Feature list used in training
             "n_features":         len(all_features),
             "features":           all_features,

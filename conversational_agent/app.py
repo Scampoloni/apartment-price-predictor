@@ -1,43 +1,47 @@
+"""Conversational structured-input frontend for the shared rent model."""
+
+from __future__ import annotations
+
 import json
 import os
-import pickle
+from typing import Callable
 
 import gradio as gr
-import numpy as np
-import pandas as pd
 from openai import OpenAI
 
-MODEL_PATH = "random_forest_regression.pkl"
-
-with open(MODEL_PATH, "rb") as f:
-    model = pickle.load(f)
-
-df_bfs = pd.read_csv("bfs_municipality_and_tax_data.csv", sep=",", encoding="utf-8")
-df_bfs["tax_income"] = (
-    df_bfs["tax_income"].astype(str).str.replace("'", "", regex=False).astype(float)
+from conversational_agent.core import (
+    ApartmentQuery,
+    municipality_support,
+    parse_apartment_query,
+    validate_price_free_explanation,
 )
+from price_estimator.src.predict import _load_metadata, predict_price
 
-town_to_row = {str(row["bfs_name"]).lower(): row for _, row in df_bfs.iterrows()}
-valid_towns = list(df_bfs["bfs_name"].sort_values().unique())
+EXTRACTION_SYSTEM_PROMPT = """
+Extract apartment search preferences from German free text.
+Return exactly one JSON object with these keys:
+- rooms: number or null
+- area_m2: number or null
+- municipality: string or null
+- description: only listing attributes explicitly stated by the user, or ""
+Never infer missing values. Never output, estimate, copy, or add a price field.
+""".strip()
 
-
-def match_town(user_town: str):
-    if not user_town or not user_town.strip():
-        return None
-    key = user_town.strip().lower()
-    if key in town_to_row:
-        return str(town_to_row[key]["bfs_name"])
-    for canonical in valid_towns:
-        if key in canonical.lower():
-            return canonical
-    return None
+EXPLANATION_SYSTEM_PROMPT = """
+Write a short German explanation of which apartment attributes a statistical
+rent model can use and which important limitations remain. Return JSON with
+exactly one string field named "answer". Do not mention any number, price,
+currency, range, or calculation. The numeric estimate is rendered separately
+by deterministic application code.
+""".strip()
 
 
 def call_llm_json(system_prompt: str, user_prompt: str) -> str:
+    """Call the configured OpenAI model with JSON-object response mode."""
     api_key = os.getenv("OPENAI_API_KEY", "")
     model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY ist nicht gesetzt.")
+        raise ValueError("OPENAI_API_KEY is not set.")
     client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
         model=model_name,
@@ -45,134 +49,126 @@ def call_llm_json(system_prompt: str, user_prompt: str) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
+        response_format={"type": "json_object"},
         temperature=0,
-        max_tokens=200,
+        max_tokens=250,
     )
     return response.choices[0].message.content.strip()
 
 
-def parse_json_response(raw: str, required_keys: tuple) -> dict:
-    cleaned = (raw or "").strip().strip("```").lstrip("json").strip()
-    if not cleaned:
-        raise ValueError("Das LLM hat eine leere Antwort zurückgegeben.")
-    try:
-        parsed = json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Das LLM hat kein gültiges JSON zurückgegeben: {cleaned[:300]}") from exc
-    missing = [k for k in required_keys if k not in parsed]
-    if missing:
-        raise ValueError(f"JSON fehlen Pflichtfelder: {', '.join(missing)}")
-    return parsed
-
-
-def extract_preferences(user_text: str) -> dict:
-    system_prompt = (
-        "Du bist ein Assistent, der Wohnungswünsche aus deutschem Text extrahiert. "
-        "Antworte ausschliesslich mit einem JSON-Objekt ohne Markdown. "
-        "Pflichtfelder: rooms (float), area_m2 (float), town (string). "
-        "Falls ein Wert nicht genannt wird, setze null."
+def extract_preferences(user_text: str) -> ApartmentQuery:
+    raw = call_llm_json(
+        EXTRACTION_SYSTEM_PROMPT,
+        f"Extract only explicitly stated fields from:\n\n{user_text}",
     )
-    user_prompt = f"Extrahiere die Wohnungsparameter aus folgendem Text:\n\n{user_text}"
-    raw = call_llm_json(system_prompt, user_prompt)
-    return parse_json_response(raw, required_keys=("rooms", "area_m2", "town"))
+    return parse_apartment_query(raw)
 
 
-def predict_apartment_price(rooms: float, area_m2: float, town: str) -> float:
-    row = town_to_row.get(town.lower())
-    if row is None:
-        raise ValueError(f"Gemeinde '{town}' wurde nicht in den BFS-Daten gefunden.")
-    features = np.array([[
-        rooms,
-        area_m2,
-        float(row["pop"]),
-        float(row["pop_dens"]),
-        float(row["frg_pct"]),
-        float(row["emp"]),
-        float(row["tax_income"]),
-    ]])
-    return float(model.predict(features)[0])
-
-
-def generate_explanation(preferences: dict, prediction: float) -> str:
-    system_prompt = (
-        "Du bist ein freundlicher Immobilienassistent. "
-        "Erkläre die Mietpreisschätzung kurz auf Deutsch. "
-        "Antworte ausschliesslich mit einem JSON-Objekt: {\"answer\": \"...\"}. "
-        "Erwähne eine Unsicherheit des Modells. Berechne keinen eigenen Preis."
+def generate_price_free_explanation(query: ApartmentQuery) -> str:
+    """Generate qualitative prose without exposing the model's price output."""
+    raw = call_llm_json(
+        EXPLANATION_SYSTEM_PROMPT,
+        "Validated apartment attributes:\n"
+        + json.dumps(query.to_dict(), ensure_ascii=False),
     )
-    user_prompt = (
-        f"Wohnungsparameter: {json.dumps(preferences, ensure_ascii=False)}\n"
-        f"Modellschätzung: {prediction:.0f} CHF/Monat\n"
-        "Erkläre das Ergebnis in 2-3 Sätzen."
-    )
-    raw = call_llm_json(system_prompt, user_prompt)
-    parsed = parse_json_response(raw, required_keys=("answer",))
-    return parsed["answer"]
+    return validate_price_free_explanation(raw)
 
 
-def run_pipeline(user_text: str):
+def _deterministic_uncertainty_note(
+    prediction_result: dict,
+    support_warning: str,
+) -> str:
+    metadata = _load_metadata()
+    random_rmse = metadata.get("holdout_rmse")
+    geographic = metadata.get("geographic_evaluation") or {}
+    parts = [
+        "Research estimate only: the model was trained on a small sample from "
+        "the canton of Zurich and is not suitable for production valuation."
+    ]
+    if random_rmse is not None:
+        parts.append(f"Random-holdout RMSE: about CHF {random_rmse:,.0f}.")
+    if geographic.get("rmse") is not None:
+        parts.append(
+            "Municipality-holdout RMSE: about "
+            f"CHF {geographic['rmse']:,.0f}; this harder test is the better "
+            "warning for new locations."
+        )
+    warning = support_warning or prediction_result.get("municipality_warning", "")
+    if warning:
+        parts.append(warning)
+    return " ".join(parts)
+
+
+def run_pipeline(
+    user_text: str,
+    *,
+    extractor: Callable[[str], ApartmentQuery] = extract_preferences,
+    explainer: Callable[[ApartmentQuery], str] = generate_price_free_explanation,
+) -> tuple[dict, float | None, str]:
+    """Extract, validate, predict, then explain without giving price to the LLM."""
     if not user_text or not user_text.strip():
         return {}, None, "Bitte einen Wohnungswunsch eingeben."
     try:
-        prefs = extract_preferences(user_text)
-    except Exception as e:
-        return {}, None, f"Fehler bei der Extraktion: {e}"
+        query = extractor(user_text)
+    except Exception as exc:  # noqa: BLE001
+        return {}, None, f"Extraktion fehlgeschlagen: {exc}"
 
-    rooms = prefs.get("rooms")
-    area_m2 = prefs.get("area_m2")
-    town_raw = prefs.get("town")
-
-    if not rooms or not area_m2 or not town_raw:
-        return prefs, None, "Bitte Zimmeranzahl, Fläche und Ort angeben."
-
-    matched = match_town(str(town_raw))
-    if not matched:
-        return prefs, None, f"Ort '{town_raw}' wurde nicht gefunden. Bitte einen Schweizer Ortsnamen angeben."
-
-    prefs["town_matched"] = matched
-
+    metadata = _load_metadata()
+    _, support_warning = municipality_support(
+        query.municipality,
+        metadata.get("known_municipalities", []),
+    )
     try:
-        prediction = predict_apartment_price(rooms, area_m2, matched)
-    except Exception as e:
-        return prefs, None, f"Fehler bei der Vorhersage: {e}"
-
-    try:
-        explanation = generate_explanation(
-            {"rooms": rooms, "area_m2": area_m2, "town": matched},
-            prediction,
+        prediction_result = predict_price(
+            rooms=query.rooms,
+            area=query.area_m2,
+            municipality=query.municipality,
+            description=query.description,
         )
-    except Exception as e:
-        return prefs, prediction, f"Vorhersage: {prediction:.0f} CHF (Erklärung fehlgeschlagen: {e})"
+    except Exception as exc:  # noqa: BLE001
+        return query.to_dict(), None, f"Vorhersage fehlgeschlagen: {exc}"
 
-    return prefs, prediction, explanation
+    try:
+        explanation = explainer(query)
+    except Exception:
+        explanation = (
+            "Die Schätzung nutzt die validierten Wohnungsangaben. Zustand, "
+            "Mikrolage und aktuelle Marktänderungen bleiben unberücksichtigt."
+        )
 
-
-with gr.Blocks(title="Apartment Predictor") as demo:
-    gr.Markdown(
-        """
-        # Apartment Predictor — Wohnungsmiete schätzen
-        Beschreibe deinen Wohnungswunsch auf Deutsch.
-        Das Modell extrahiert Zimmer, Fläche und Ort und schätzt die monatliche Miete.
-
-        **Beispiel:** *Ich suche eine 3.5-Zimmer-Wohnung mit 85 m² in Winterthur.*
-        """
+    note = _deterministic_uncertainty_note(prediction_result, support_warning)
+    return (
+        query.to_dict(),
+        float(prediction_result["predicted_price_chf"]),
+        f"{explanation}\n\n{note}",
     )
 
+
+with gr.Blocks(title="Zurich Apartment AI Suite — Conversational Agent") as demo:
+    gr.Markdown(
+        """
+        # Zurich Apartment AI Suite — Conversational Agent
+
+        Beschreibe Zimmer, Fläche, Zürcher Gemeinde und optionale
+        Inseratmerkmale. Das LLM strukturiert nur die Eingabe; ausschliesslich
+        das Regressionsmodell erzeugt die numerische Mietschätzung.
+        """
+    )
     user_text = gr.Textbox(
         label="Wohnungswunsch (Deutsch)",
         lines=4,
-        placeholder="Beschreibe Zimmer, Fläche und Ort auf Deutsch...",
+        placeholder="Zum Beispiel: dreieinhalb Zimmer, achtzig Quadratmeter in Uster",
     )
     submit = gr.Button("Miete schätzen", variant="primary")
-
-    extracted = gr.JSON(label="Extrahierte Parameter")
-    price = gr.Number(label="Geschätzte Monatsmiete (CHF)")
-    response = gr.Textbox(label="Erklärung", lines=6)
-
+    extracted = gr.JSON(label="Validierte Modellparameter")
+    price = gr.Number(label="Modellschätzung Monatsmiete (CHF)")
+    response = gr.Textbox(label="Erklärung und Unsicherheit", lines=8)
     submit.click(
         fn=run_pipeline,
         inputs=[user_text],
         outputs=[extracted, price, response],
     )
 
-demo.launch()
+
+if __name__ == "__main__":
+    demo.launch()

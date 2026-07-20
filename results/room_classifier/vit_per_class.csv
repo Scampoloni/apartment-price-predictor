@@ -1,0 +1,9 @@
+class,precision,recall,f1,support,evaluable,warning
+bathroom,0.0,,,0,False,No labelled examples for this class in the test split.
+bedroom,0.0,,,0,False,No labelled examples for this class in the test split.
+children's room,0.0,,,0,False,No labelled examples for this class in the test split.
+corridor,0.8571428571428571,1.0,0.9230769230769231,6,True,
+dining room,0.9746835443037974,0.7938144329896907,0.875,97,True,
+kitchen,0.9523809523809523,0.963855421686747,0.9580838323353293,83,True,
+living room,0.7887323943661971,0.9824561403508771,0.875,57,True,
+nursery,1.0,0.9090909090909091,0.9523809523809523,11,True,

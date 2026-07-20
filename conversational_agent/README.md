@@ -1,31 +1,43 @@
 ---
-title: Apartment Predictor
+title: Zurich Apartment AI - Conversational Agent
 emoji: 🏠
 colorFrom: blue
 colorTo: green
 sdk: gradio
-sdk_version: "5.23.0"
+sdk_version: "6.9.0"
 python_version: "3.11"
 app_file: app.py
 pinned: false
 ---
 
-# Apartment Predictor — Wohnungsmiete schätzen
+# Conversational structured-input agent
 
-Diese App kombiniert ein vortrainiertes Random-Forest-Regressionsmodell mit GPT-4o-mini, um aus einem deutschen Freitext-Wohnungswunsch eine monatliche Mietpreisschätzung zu erstellen.
+This application converts German apartment requests into validated fields for
+the suite's shared Zurich rent model.
 
-## Workflow
+The LLM may extract only:
 
-1. Nutzer beschreibt Wohnungswunsch auf Deutsch
-2. LLM extrahiert `rooms`, `area_m2`, `town` als JSON
-3. Regressionsmodell schätzt Monatsmiete (CHF) anhand von 7 Features inkl. BFS-Gemeindedaten
-4. LLM erklärt das Ergebnis auf Deutsch mit Unsicherheitshinweis
+- `rooms`
+- `area_m2`
+- `municipality`
+- optional explicitly stated listing attributes in `description`
 
-## Beispiel-Eingabe
+It never predicts, edits, or explains a numeric price. Application code rejects
+price fields in extraction output, and the explanation call never receives the
+regression result. Numeric rent is produced and displayed only by the
+scikit-learn pipeline in `price_estimator/`.
 
-> *Ich suche eine 3.5-Zimmer-Wohnung mit 85 m² in Winterthur.*
+Unknown municipalities are accepted by the encoder but receive an explicit
+weak-support warning. The UI also displays the random-holdout and
+municipality-grouped uncertainty evidence.
 
-## Benötigte Secrets
+Required secret: `OPENAI_API_KEY`. Optional model override: `OPENAI_MODEL`
+(default `gpt-4o-mini`). Never place keys in source files or `.env` files
+committed to Git.
 
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` (optional, Standard: `gpt-4o-mini`)
+Run from the repository root:
+
+```bash
+pip install -r conversational_agent/requirements.txt
+python -m conversational_agent.app
+```

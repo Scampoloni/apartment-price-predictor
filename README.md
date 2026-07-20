@@ -1,167 +1,280 @@
-# Apartment AI Applications — Canton of Zurich
+# Zurich Apartment AI Suite
 
-Three end-to-end AI applications built around Swiss apartment data, combining machine learning, computer vision, and natural language processing. All apps are deployed as interactive web applications on Hugging Face Spaces.
+Three connected applied-AI prototypes for structured, textual, and visual
+apartment data:
 
----
+| Application | Modality | Role |
+|---|---|---|
+| [Price estimator](price_estimator/) | Structured listing data | Predicts an indicative monthly gross rent |
+| [Conversational agent](conversational_agent/) | German free text → validated JSON | Collects inputs for the same price model |
+| [Room classifier](room_classifier/) | Room images | Compares fine-tuned and zero-shot vision approaches |
 
-## Applications
+This is a research and portfolio suite, not a production valuation service.
+The rent data is small and restricted to the canton of Zurich. Results are
+reported with their split design, class coverage, and known uncertainty.
 
-### 1. Apartment Price Predictor
-> Regression · scikit-learn · Feature Engineering · Gradio
+Repository URL: [Scampoloni/apartment-price-predictor](https://github.com/Scampoloni/apartment-price-predictor).
+`zurich-apartment-ai-suite` is the clearer project name, but the remote
+repository has not been renamed: changing it without coordinating GitHub,
+Hugging Face, clones, and portfolio links would create avoidable breakage.
 
-Estimates the monthly gross rental price (CHF) for apartments in the Canton of Zurich based on size, location, and listing features extracted from text.
+## Application 1: price estimation
 
-**Live demo:** [huggingface.co/spaces/Scampolonii/apartment-price-predictor](https://huggingface.co/spaces/Scampolonii/apartment-price-predictor)
+The estimator uses a scikit-learn `Pipeline` with median imputation,
+`OneHotEncoder(handle_unknown="ignore")`, and a `RandomForestRegressor`.
+Preprocessing is fitted only on training folds. Unknown municipalities are
+accepted safely but produce an explicit warning.
 
-| | |
-|---|---|
-| Task | Regression |
-| Dataset | Canton of Zurich rental listings — 819 listings, 112 municipalities |
-| Best model | RandomForestRegressor |
-| CV RMSE | 798 CHF (±164) |
-| Holdout RMSE | 840 CHF |
-| R² | 0.58 |
+Inputs available when a listing is viewed:
 
-**What makes it interesting:**
-Two training iterations with full cross-validation. Iteration 2 introduced engineered features extracted from raw listing text (furnished, balcony, luxury, temporary rental flags) alongside a room density metric — improving generalization over the baseline.
+- rooms and living area;
+- municipality;
+- rooms per square metre;
+- listing-text flags for furnished, temporary, balcony/terrace, and luxury
+  language;
+- a Zurich-city flag.
 
-| Iteration | Model | CV RMSE | CV R² |
-|---|---|---|---|
-| 1 — Baseline | LinearRegression | 880 CHF | 0.48 |
-| 1 — Baseline | RandomForest v1 | 800 CHF | 0.58 |
-| 2 — Feature Engineering | MLPRegressor | 886 CHF | 0.47 |
-| 2 — Feature Engineering | **RandomForest v2** | **798 CHF** | **0.58** |
+The target price, address, coordinates, and post-outcome information are not
+used as features. Text flags are deterministic keyword features derived only
+from the listing description available at prediction time.
 
-**Features:** `rooms` · `area` · `rooms_per_m2` · `municipality` (one-hot, 112 classes) · `is_furnished` · `has_balcony` · `is_luxurious` · `is_temporary` · `is_zurich_city`
+Dataset evidence:
 
-**Stack:** Python · scikit-learn · pandas · Gradio
+- 819 raw rows; 817 remain after documented validity filters;
+- 93 observed municipalities, not 112;
+- canton of Zurich only;
+- raw listing data is intentionally excluded from Git and must be supplied
+  locally with appropriate permission.
 
----
+[Live price Space](https://huggingface.co/spaces/Scampolonii/apartment-price-predictor)
+(URL verified 2026-07-20; Space was sleeping).
 
-### 2. Conversational Apartment Agent
-> NLP · LLM · Prompt Engineering · Gradio
+## Application 2: conversational agent
 
-A conversational agent that turns free-text German apartment queries into structured prediction inputs, runs them through the trained regression model, and returns a natural language explanation of the result.
+The agent is an input layer over the same regression artifact; it is not a
+second pricing model.
 
-**Live demo:** [huggingface.co/spaces/Scampolonii/apartement-conversational-agent](https://huggingface.co/spaces/Scampolonii/apartement-conversational-agent)
+1. An LLM extracts `rooms`, `area_m2`, `municipality`, and optional explicitly
+   stated listing attributes.
+2. Application code validates types, ranges, required fields, and municipality
+   support.
+3. The shared regression pipeline alone produces the numeric rent estimate.
+4. A separate LLM call may write qualitative German prose, but it never
+   receives the predicted price. Output containing a number or currency is
+   rejected.
+5. Deterministic application text displays the random and geographic error
+   evidence and warns about unseen municipalities.
 
-**How it works:**
-1. User describes their apartment wish in German free text
-2. GPT-4o-mini extracts `rooms`, `area_m2`, and `town` as structured JSON
-3. BFS municipality data is joined to build the full 7-feature model input
-4. RandomForest predicts the monthly rent in CHF
-5. A second LLM call generates a German explanation with an uncertainty note
+Malformed JSON, missing fields, unknown municipalities, forbidden price fields,
+and price-like explanation output are covered by unit tests. API keys are read
+only from `OPENAI_API_KEY`; no key is stored in the repository.
 
-**Example:**
-> *"Ich suche eine 3.5-Zimmer-Wohnung mit 85 m² in Winterthur."*
-> → `{"rooms": 3.5, "area_m2": 85, "town": "Winterthur"}` → CHF 2'082/month + explanation
+[Conversational Space](https://huggingface.co/spaces/Scampolonii/apartement-conversational-agent)
+(URL verified 2026-07-20, but the deployed revision was in `RUNTIME_ERROR`;
+local code and tests are the maintained reference).
 
-**Prompt design highlights:**
-- Strict JSON-only output enforced via system instruction
-- Temperature=0 for deterministic extraction
-- Explanation prompt explicitly forbids the LLM from calculating its own price
-- Validation layer catches malformed JSON before it reaches the model
+## Application 3: room classifier
 
-**Stack:** Python · OpenAI API · scikit-learn · pandas · Gradio
+The vision app exposes:
 
----
+- fine-tuned ViT: [`Scampolonii/vit-apartment-rooms`](https://huggingface.co/Scampolonii/vit-apartment-rooms);
+- zero-shot CLIP: `openai/clip-vit-large-patch14`;
+- optional GPT-4o vision for a small, paid qualitative demonstration.
 
-### 3. Apartment Room Classifier
-> Computer Vision · Transfer Learning · ViT · CLIP · GPT-4o · Gradio
+Training used the existing train and validation splits from
+[`keremberke/indoor-scene-classification`](https://huggingface.co/datasets/keremberke/indoor-scene-classification),
+filtered to eight apartment-relevant labels. The filtered split sizes recorded
+by the executed training run were 1,931 train, 975 validation, and 254 test.
+Only the ViT classifier head was trained: 6,152 trainable parameters out of
+85,804,808.
 
-Classifies apartment room images into 8 categories and compares three fundamentally different model approaches: fine-tuned ViT, zero-shot CLIP, and GPT-4o vision.
+The full filtered test split was evaluated, but it contains labelled examples
+for only five of the eight configured classes. Bathroom, bedroom, and
+children's room have zero test support. Therefore the result is a full pass
+over the available test split, but not a complete eight-class assessment.
 
-**Live demo:** [huggingface.co/spaces/Scampolonii/apartment-room-classifier](https://huggingface.co/spaces/Scampolonii/apartment-room-classifier)  
-**Trained model:** [huggingface.co/Scampolonii/vit-apartment-rooms](https://huggingface.co/Scampolonii/vit-apartment-rooms)
+[Live room-classifier Space](https://huggingface.co/spaces/Scampolonii/apartment-room-classifier)
+(URL verified 2026-07-20; Space was sleeping).
 
-| | |
-|---|---|
-| Task | Multi-class image classification (8 classes) |
-| Dataset | MIT Indoor Scenes — ~15,571 images, filtered to 8 apartment-relevant classes |
-| Base model | `google/vit-base-patch16-224` |
-| Training strategy | Transfer learning — only classifier head trained |
-| Trainable parameters | 4,614 out of 85,803,270 |
-| Test accuracy | **90.16%** |
+## Shared architecture
 
-**Classes:** `bathroom` · `bedroom` · `children's room` · `corridor` · `dining room` · `kitchen` · `living room` · `nursery`
+```text
+German request ──LLM extraction──> validated structured fields
+                                          │
+Listing form ─────────────────────────────┤
+                                          ▼
+                              shared rent pipeline
+                                          │
+                             numeric estimate + evidence
 
-**Model comparison (8 example images):**
-
-| Model | Type | Correct | Notes |
-|---|---|---|---|
-| Fine-tuned ViT | Transfer learning | 4/8 (50%) | Strong within training distribution; weaker on atypical scenes |
-| CLIP zero-shot | Open-source zero-shot | 6/8 (75%) | Solid generalization with no task-specific training |
-| GPT-4o | Closed-source LLM vision | 8/8 (100%) | Best results; understands context and scene composition |
-
-**Stack:** Python · PyTorch · HuggingFace Transformers · CLIP · OpenAI API · Gradio
-
----
-
-## Repository Structure
-
-```
-apartment-price-predictor/
-│
-├── app.py                      # Price predictor — Gradio web interface
-├── requirements.txt
-│
-├── src/                        # Price predictor source package
-│   ├── config.py               # Paths, column names, hyperparameters
-│   ├── data_loader.py          # Data loading & cleaning
-│   ├── features.py             # Feature engineering
-│   ├── preprocessing.py        # sklearn ColumnTransformer
-│   ├── train.py                # Training entry point (iterations 1 & 2)
-│   ├── evaluate.py             # Metrics & CV evaluation
-│   └── predict.py              # Inference module
-│
-├── models/
-│   ├── pipeline.joblib         # Trained sklearn pipeline
-│   └── metadata.json           # Model metrics snapshot
-│
-├── conversational_agent/       # Conversational agent app
-│   ├── app.py                  # Gradio app with LLM pipeline
-│   ├── random_forest_regression.pkl
-│   ├── bfs_municipality_and_tax_data.csv
-│   └── documentation.md
-│
-└── cv_app/                     # Room classifier app
-    ├── app.py                  # Gradio app with 3-model comparison
-    ├── README.md               # Detailed classifier documentation
-    └── examples/               # 8 example room images
+Room image ──> ViT / CLIP / optional qualitative GPT-4o comparison
 ```
 
----
+The conversational application reuses the price artifact and uncertainty
+metadata. Vision evaluation remains separate because its labels, splits, and
+metrics are fundamentally different from rent regression.
 
-## Local Setup
+## Results
 
-### Price Predictor
+### Rent regression
+
+| Evaluation | Split discipline | RMSE | MAE | R² |
+|---|---|---:|---:|---:|
+| Random holdout | 653 train / 164 test; municipalities may overlap | CHF 840 | CHF 504 | 0.563 |
+| Geographic generalisation | 5-fold `GroupKFold`; every municipality absent from its test fold's training data | CHF 1,104 | CHF 657 | 0.235 |
+
+The random result is preserved for comparison. The municipality-grouped result
+is the more realistic test for a new location and is substantially weaker.
+Its largest fold holds out all 274 Zurich-city rows, illustrating both genuine
+geographic difficulty and the instability caused by an imbalanced, small
+dataset. No fold has municipality overlap.
+
+Random-holdout error analysis:
+
+| Slice | n | RMSE | MAE | Note |
+|---|---:|---:|---:|---|
+| Rent below CHF 2,000 | 44 | CHF 458 | CHF 412 | R² is negative within this narrow band |
+| CHF 2,000–2,999 | 77 | CHF 358 | CHF 268 | R² is negative within this narrow band |
+| CHF 3,000 or more | 43 | CHF 1,500 | CHF 1,021 | Upper-tail errors dominate |
+| Zurich city | 54 | CHF 1,090 | CHF 703 | Harder than the rest of the canton |
+| Rest of canton | 110 | CHF 685 | CHF 407 | — |
+| Frequent municipalities in training | 95 | CHF 889 | CHF 543 | At least 10 training rows |
+| Sparse or unseen municipalities | 69 | CHF 768 | CHF 451 | Fewer than 10 training rows |
+| Furnished flag | 6 | CHF 501 | CHF 437 | **Too few observations for a stable conclusion** |
+| No furnished flag | 158 | CHF 850 | CHF 507 | — |
+
+The largest anonymized residual examples are in
+[`results/price_estimator/largest_residuals.csv`](results/price_estimator/largest_residuals.csv).
+They omit addresses and listing text. Full aggregate evidence is in
+[`results/price_estimator/evaluation_summary.json`](results/price_estimator/evaluation_summary.json).
+
+### Room classification
+
+| Model | Quantitative population | Accuracy | Macro F1 | Status |
+|---|---|---:|---:|---|
+| Fine-tuned ViT | All 254 filtered test images; only 5/8 classes have support | 90.16% | 91.67% across supported classes; 57.29% if all 8 configured classes are included | Completed |
+| CLIP | Same labelled test population | — | — | Not run: the large checkpoint was not practical in the available CPU-only audit environment |
+| GPT-4o | No quantitative test-set run | — | — | Kept qualitative to avoid material API cost |
+
+ViT [per-class metrics](results/room_classifier/vit_per_class.csv) and the
+[confusion matrix](results/room_classifier/vit_confusion_matrix.csv) are
+committed. Zero-support classes are marked not evaluable. The shared evaluator
+can run CLIP later with:
 
 ```bash
-git clone https://github.com/Scampoloni/apartment-price-predictor
+python -m room_classifier.evaluate --include-clip
+```
+
+### Non-representative qualitative examples
+
+Exactly eight convenience-selected external images are stored in
+`room_classifier/examples/`: one named example for bathroom, bedroom,
+children's room, corridor, dining room, kitchen, living room, and nursery.
+They were not randomly sampled, are outside the labelled test set, and their
+original source URLs were not retained; they must not be treated as a
+statistical benchmark.
+
+Recorded top-one outcomes on these eight examples were ViT 4/8, CLIP 6/8, and
+GPT-4o 8/8. These figures are qualitative observations only. They do not show
+that GPT-4o is objectively best, do not establish statistical significance,
+and are not mixed into the quantitative table above. No larger external
+dataset is claimed or fabricated.
+
+## Limitations
+
+- The rent dataset is small, geographically narrow, and may not reflect current
+  market conditions.
+- Municipality one-hot encoding cannot learn a new municipality's local price
+  level; safe handling is not the same as reliable generalisation.
+- Random splitting is optimistic when the same municipalities appear on both
+  sides.
+- Price errors are much larger in the upper rent band.
+- Furnished listings are too rare in the random test split for a stable
+  subgroup conclusion.
+- Keyword flags can miss synonyms, negation, or unusual listing language.
+- ViT test coverage is only five of eight configured room classes.
+- The external image gallery is selected and non-representative, and its source
+  provenance is incomplete.
+- CLIP has not yet received the same full-test quantitative run.
+- GPT-4o comparison is intentionally small and paid; no significance is
+  implied.
+- None of the three applications should be used for production valuation,
+  housing decisions, or claims of market coverage beyond the evidence above.
+
+## Local setup
+
+Use Python 3.11.
+
+```bash
+git clone https://github.com/Scampoloni/apartment-price-predictor.git
 cd apartment-price-predictor
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# Place dataset at: data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv
-python -m src.train --iteration 1
-python -m src.train --iteration 2
-python app.py  # → http://localhost:7860
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+pip install -r requirements-dev.txt
 ```
 
-### Conversational Agent
+Price training and app:
 
 ```bash
-cd conversational_agent
-pip install -r requirements.txt
-export OPENAI_API_KEY=your_key
-python app.py  # → http://localhost:7860
+# Supply, but do not commit:
+# data/raw/original_apartment_data_analytics_hs24_with_lat_lon.csv
+python -m price_estimator.src.train --iteration 2
+python -m price_estimator.app
 ```
 
-### Room Classifier
+Conversational app:
 
 ```bash
-cd cv_app
-pip install -r requirements.txt
-export OPENAI_API_KEY=your_key
-python app.py  # → http://localhost:7860
+pip install -r conversational_agent/requirements.txt
+# Set OPENAI_API_KEY in the environment or deployment secret store.
+python -m conversational_agent.app
 ```
+
+Room app and evaluation:
+
+```bash
+pip install -r room_classifier/requirements.txt
+python -m room_classifier.app
+python -m room_classifier.evaluate
+```
+
+The default room evaluation runs ViT only. `--include-clip` downloads and runs
+the much larger CLIP model. GPT-4o is never called by the evaluation script.
+
+Tests:
+
+```bash
+pytest -q
+```
+
+CI runs syntax checks, unit tests, structured-JSON validation, and a small
+synthetic price-pipeline smoke test. It does not download large vision models.
+
+## Repository structure
+
+```text
+.
+├── price_estimator/       # regression app, training, evaluation, artifact
+├── conversational_agent/ # JSON extraction, validation, shared-model frontend
+├── room_classifier/      # ViT/CLIP/GPT app and labelled-test evaluator
+├── results/              # committed aggregate evidence, no raw listings
+├── tests/                # unit, import, and smoke tests
+├── .github/workflows/    # lightweight CI
+└── app.py                # compatibility launcher for the price Space
+```
+
+## My contribution and AI-assisted development
+
+My project contribution covers dataset preparation and validation, rent feature
+engineering, leakage-safe preprocessing, random and municipality-grouped model
+evaluation, residual analysis, integration of the conversational input layer
+with the regression artifact, prompt constraints and JSON validation, vision
+model training/evaluation workflow, and Hugging Face deployment setup.
+
+AI coding support was used for implementation assistance, refactoring, tests,
+and documentation review. Model choices, data inclusion, evaluation design,
+metric interpretation, prompts, validation rules, and final claims remain
+human-reviewed project decisions. AI assistance is not presented as a source
+of ground-truth prices, labels, municipality coverage, or fabricated
+experiments.

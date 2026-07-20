@@ -1,0 +1,20 @@
+{
+  "accuracy": 0.9015748031496063,
+  "macro_f1_supported_classes": 0.916708341558641,
+  "macro_f1_all_configured_classes": 0.5729427134741506,
+  "n_test": 254,
+  "supported_classes": [
+    "corridor",
+    "dining room",
+    "kitchen",
+    "living room",
+    "nursery"
+  ],
+  "missing_test_classes": [
+    "bathroom",
+    "bedroom",
+    "children's room"
+  ],
+  "class_coverage": "5/8",
+  "coverage_warning": "The official filtered test split does not contain every configured class; eight-class performance is therefore not fully identified."
+}

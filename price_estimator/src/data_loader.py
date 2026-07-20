@@ -16,7 +16,7 @@ from typing import Optional
 
 import pandas as pd
 
-from src.config import (
+from price_estimator.src.config import (
     CANDIDATE_AREA_COLS,
     CANDIDATE_DESCRIPTION_COLS,
     CANDIDATE_LOCATION_COLS,
@@ -53,8 +53,8 @@ def load_raw_data(filepath: Optional[Path] = None) -> pd.DataFrame:
     if not filepath.exists():
         raise FileNotFoundError(
             f"Raw data file not found: {filepath}\n"
-            "→ Place your CSV at  data/raw/apartments.csv\n"
-            "→ Or update RAW_DATA_FILE in src/config.py."
+            f"→ Place the dataset at {RAW_DATA_FILE}\n"
+            "→ Or update RAW_DATA_FILE in price_estimator/src/config.py."
         )
 
     suffix = filepath.suffix.lower()
@@ -158,7 +158,8 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(
             f"\n\nRequired column(s) not found: {col_list}\n\n"
             f"Candidates tried:\n{hints}\n\n"
-            f"→ Add your column name to the matching CANDIDATE_*_COLS list in src/config.py.\n"
+            "→ Add your column name to the matching CANDIDATE_*_COLS list in "
+            "price_estimator/src/config.py.\n"
             f"→ Columns present in your CSV: {sorted(df.columns.tolist())}"
         )
 
@@ -189,7 +190,8 @@ def basic_clean(df: pd.DataFrame) -> pd.DataFrame:
     df = df.drop_duplicates()
     df = df.dropna(subset=[TARGET_COLUMN])
 
-    # Handle Swiss price formatting, e.g. "2'500" or "2.500"
+    # Handle Swiss apostrophe formatting and surrounding currency text,
+    # e.g. "CHF 2'500". Dots are retained as decimal separators.
     df[TARGET_COLUMN] = pd.to_numeric(
         df[TARGET_COLUMN]
         .astype(str)

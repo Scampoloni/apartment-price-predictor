@@ -4,7 +4,7 @@ The app imports *only* this module.  It never retrains or touches raw data.
 Artifacts are loaded once and cached for the lifetime of the process.
 
 Usage:
-    from src.predict import predict_price
+    from price_estimator.src.predict import predict_price
     result = predict_price(rooms=3.5, area=80, municipality="Zürich")
     print(result["predicted_price_chf"])
 """
@@ -16,14 +16,14 @@ from typing import Optional
 import joblib
 import pandas as pd
 
-from src.config import (
+from price_estimator.src.config import (
     DESCRIPTION_COLUMN,
     FEATURE_NAMES_ARTIFACT,
     LOCATION_COLUMN,
     MODEL_ARTIFACT,
     MODEL_METADATA_ARTIFACT,
 )
-from src.features import engineer_all_features
+from price_estimator.src.features import engineer_all_features
 
 
 # ── Artifact loading (cached) ──────────────────────────────────────────────────
@@ -39,7 +39,7 @@ def _load_pipeline():
         raise FileNotFoundError(
             f"Model artifact not found: {MODEL_ARTIFACT}\n"
             "Run training first:\n"
-            "  python -m src.train --iteration 2"
+            "  python -m price_estimator.src.train --iteration 2"
         )
     return joblib.load(MODEL_ARTIFACT)
 
@@ -51,7 +51,7 @@ def _load_feature_names() -> list[str]:
         raise FileNotFoundError(
             f"Feature names artifact not found: {FEATURE_NAMES_ARTIFACT}\n"
             "Run training first:\n"
-            "  python -m src.train --iteration 2"
+            "  python -m price_estimator.src.train --iteration 2"
         )
     with open(FEATURE_NAMES_ARTIFACT) as f:
         return json.load(f)
@@ -64,6 +64,30 @@ def _load_metadata() -> dict:
         return {}  # metadata is optional — app still works without it
     with open(MODEL_METADATA_ARTIFACT) as f:
         return json.load(f)
+
+
+def assess_municipality(municipality: Optional[str]) -> dict[str, object]:
+    """Describe whether a municipality was represented during training."""
+    value = (municipality or "").strip()
+    known = set(_load_metadata().get("known_municipalities", []))
+    if not value:
+        return {
+            "is_known": False,
+            "warning": (
+                "No municipality was supplied. Location-specific information "
+                "cannot be used."
+            ),
+        }
+    if known and value not in known:
+        return {
+            "is_known": False,
+            "warning": (
+                f"'{value}' was not represented in training. The one-hot "
+                "encoder handles it safely, but the estimate has weaker "
+                "geographic support."
+            ),
+        }
+    return {"is_known": True, "warning": ""}
 
 
 # ── Public prediction function ────────────────────────────────────────────────
@@ -92,6 +116,11 @@ def predict_price(
             "predicted_price_chf" (float) — estimated monthly rent in CHF.
             "model_note" (str)            — brief annotation about the estimate.
     """
+    if not 0.5 <= float(rooms) <= 15:
+        raise ValueError("rooms must be between 0.5 and 15.")
+    if not 10 <= float(area) <= 500:
+        raise ValueError("area must be between 10 and 500 m².")
+
     pipeline = _load_pipeline()
     feature_names = _load_feature_names()
 
@@ -122,11 +151,21 @@ def predict_price(
 
     # Build a human-readable model note from saved metadata
     meta = _load_metadata()
+    municipality_support = assess_municipality(municipality)
     if meta:
+        geographic = meta.get("geographic_evaluation") or {}
         model_note = (
             f"Model: {meta.get('model_name', 'unknown')}  |"
-            f"  Holdout RMSE ≈ CHF {meta.get('holdout_rmse', '?'):,}  |"
-            f"  R\u00b2 = {meta.get('holdout_r2', '?')}"
+            f"  random-holdout RMSE ≈ CHF {meta.get('holdout_rmse', '?'):,}"
+        )
+        if geographic:
+            model_note += (
+                "  |  municipality-holdout RMSE ≈ "
+                f"CHF {geographic.get('rmse', '?'):,}"
+            )
+        model_note += (
+            ". Indicative estimate only; the small canton-only dataset does "
+            "not support production valuation."
         )
     else:
         model_note = "Estimate from trained scikit-learn pipeline. For indicative purposes only."
@@ -134,6 +173,8 @@ def predict_price(
     return {
         "predicted_price_chf": round(predicted, 2),
         "model_note": model_note,
+        "municipality_known": municipality_support["is_known"],
+        "municipality_warning": municipality_support["warning"],
     }
 
 

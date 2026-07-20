@@ -1,0 +1,9 @@
+,bathroom,bedroom,children's room,corridor,dining room,kitchen,living room,nursery
+bathroom,0,0,0,0,0,0,0,0
+bedroom,0,0,0,0,0,0,0,0
+children's room,0,0,0,0,0,0,0,0
+corridor,0,0,0,6,0,0,0,0
+dining room,0,0,2,0,77,4,14,0
+kitchen,0,0,0,0,2,80,1,0
+living room,0,0,0,1,0,0,56,0
+nursery,0,0,1,0,0,0,0,10

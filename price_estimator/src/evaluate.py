@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.pipeline import Pipeline
 
-from src.config import CV_RESULTS_FILE, RANDOM_STATE, TABLES_DIR
+from price_estimator.src.config import CV_RESULTS_FILE, RANDOM_STATE, TABLES_DIR
 
 
 # ── Metric functions ───────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ def save_model_comparison_csv(enriched_cv_records: list[dict[str, Any]]) -> None
             each enriched with keys: iteration, is_best,
             holdout_rmse, holdout_mae, holdout_r2 (None for non-best rows).
     """
-    from src.config import MODEL_COMPARISON_FILE  # avoid circular imports at module load
+    from price_estimator.src.config import MODEL_COMPARISON_FILE
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
     df_new = pd.DataFrame(enriched_cv_records)
@@ -219,7 +219,7 @@ def save_iterations_csv(iteration_record: dict[str, Any]) -> None:
             iteration, best_model, n_features, features,
             cv_rmse, holdout_rmse, holdout_mae, holdout_r2.
     """
-    from src.config import ITERATIONS_FILE  # avoid circular imports at module load
+    from price_estimator.src.config import ITERATIONS_FILE
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
     df_new = pd.DataFrame([iteration_record])

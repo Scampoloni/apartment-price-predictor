@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install lightweight test environment
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Import and syntax checks
+        run: python -m compileall -q app.py price_estimator conversational_agent room_classifier
+
+      - name: Unit and smoke tests
+        env:
+          OPENAI_API_KEY: ""
+        run: pytest -q

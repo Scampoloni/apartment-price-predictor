@@ -1,0 +1,25 @@
+{
+  "dataset_id": "keremberke/indoor-scene-classification",
+  "dataset_config": "full",
+  "dataset_revision": "030dcb9ec61c436299b1df10d90ae1cbe1d1b401",
+  "vit_model_revision": "657d11121d10182427776994df45817a4e2fa9cf",
+  "source_split": "test",
+  "raw_split_rows": {
+    "train": 10885,
+    "validation": 3128,
+    "test": 1558
+  },
+  "filtered_test_rows": 254,
+  "class_counts": {
+    "bathroom": 0,
+    "bedroom": 0,
+    "children's room": 0,
+    "corridor": 6,
+    "dining room": 97,
+    "kitchen": 83,
+    "living room": 57,
+    "nursery": 11
+  },
+  "gallery_images_used_for_metrics": 0,
+  "gpt4o_images_used_for_quantitative_metrics": 0
+}
