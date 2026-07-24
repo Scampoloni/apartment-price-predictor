@@ -12,7 +12,7 @@ pinned: false
 
 # Room-image classification comparison
 
-The app compares a fine-tuned ViT, zero-shot CLIP, and an optional GPT-4o
+The app compares a fine-tuned ViT, zero-shot CLIP, and an optional Claude
 single-image classification. Quantitative test evidence and external examples
 are deliberately separated.
 
@@ -72,7 +72,7 @@ Evidence:
 - [`results/room_classifier/vit_per_class.csv`](../results/room_classifier/vit_per_class.csv)
 - [`results/room_classifier/vit_confusion_matrix.csv`](../results/room_classifier/vit_confusion_matrix.csv)
 
-## CLIP and GPT-4o status
+## CLIP and Claude status
 
 The evaluator supports CLIP on the identical labelled test set, but that
 full-test run was not completed during the CPU-only audit because the
@@ -83,7 +83,7 @@ cached. No quantitative CLIP metrics are claimed.
 python -m room_classifier.evaluate --include-clip
 ```
 
-GPT-4o was not called during quantitative evaluation. A full paid test-set pass
+Claude is not called during quantitative evaluation. A full paid test-set pass
 would incur material API cost, so it remains a small qualitative comparison.
 It is not ranked as objectively best.
 
@@ -101,7 +101,7 @@ Recorded top-one results:
 |---|---:|---|
 | Fine-tuned ViT | 4/8 | Qualitative observation only |
 | CLIP zero-shot | 6/8 | Qualitative observation only |
-| GPT-4o vision | 8/8 | Qualitative observation only; no significance claim |
+| Claude vision | Not evaluated | Optional qualitative comparison in the app |
 
 The images are not random, not part of the labelled test set, and not large
 enough for inference about model quality. Original source URLs were not
@@ -117,4 +117,5 @@ python -m room_classifier.evaluate
 ```
 
 Models are loaded lazily. Import and unit tests do not download ViT or CLIP.
-`OPENAI_API_KEY` is optional and read from the environment only.
+`ANTHROPIC_API_KEY` is optional and read from the environment only. The
+optional `ANTHROPIC_MODEL` override defaults to `claude-haiku-4-5`.

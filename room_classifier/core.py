@@ -33,7 +33,7 @@ CLIP_PROMPTS = [f"a photograph of an apartment {label}" for label in LABELS]
 
 
 def parse_vision_response(raw: str) -> dict[str, float]:
-    """Validate the optional GPT-4o qualitative classification response."""
+    """Validate the optional Claude qualitative classification response."""
     cleaned = (raw or "").strip()
     fence = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", cleaned, flags=re.DOTALL)
     if fence:

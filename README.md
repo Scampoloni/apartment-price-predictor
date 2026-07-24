@@ -67,7 +67,7 @@ second pricing model.
 
 Malformed JSON, missing fields, unknown municipalities, forbidden price fields,
 and price-like explanation output are covered by unit tests. API keys are read
-only from `OPENAI_API_KEY`; no key is stored in the repository.
+only from `ANTHROPIC_API_KEY`; no key is stored in the repository.
 
 [Conversational Space](https://huggingface.co/spaces/Scampolonii/apartement-conversational-agent)
 (URL verified 2026-07-20, but the deployed revision was in `RUNTIME_ERROR`;
@@ -79,7 +79,7 @@ The vision app exposes:
 
 - fine-tuned ViT: [`Scampolonii/vit-apartment-rooms`](https://huggingface.co/Scampolonii/vit-apartment-rooms);
 - zero-shot CLIP: `openai/clip-vit-large-patch14`;
-- optional GPT-4o vision for a small, paid qualitative demonstration.
+- optional Claude vision for a small, paid qualitative demonstration.
 
 Training used the existing train and validation splits from
 [`keremberke/indoor-scene-classification`](https://huggingface.co/datasets/keremberke/indoor-scene-classification),
@@ -107,7 +107,7 @@ Listing form ──────────────────────�
                                           │
                              numeric estimate + evidence
 
-Room image ──> ViT / CLIP / optional qualitative GPT-4o comparison
+Room image ──> ViT / CLIP / optional qualitative Claude comparison
 ```
 
 The conversational application reuses the price artifact and uncertainty
@@ -154,7 +154,7 @@ They omit addresses and listing text. Full aggregate evidence is in
 |---|---|---:|---:|---|
 | Fine-tuned ViT | All 254 filtered test images; only 5/8 classes have support | 90.16% | 91.67% across supported classes; 57.29% if all 8 configured classes are included | Completed |
 | CLIP | Same labelled test population | — | — | Not run: the large checkpoint was not practical in the available CPU-only audit environment |
-| GPT-4o | No quantitative test-set run | — | — | Kept qualitative to avoid material API cost |
+| Claude | No quantitative test-set run | — | — | Kept qualitative to avoid material API cost |
 
 ViT [per-class metrics](results/room_classifier/vit_per_class.csv) and the
 [confusion matrix](results/room_classifier/vit_confusion_matrix.csv) are
@@ -174,11 +174,11 @@ They were not randomly sampled, are outside the labelled test set, and their
 original source URLs were not retained; they must not be treated as a
 statistical benchmark.
 
-Recorded top-one outcomes on these eight examples were ViT 4/8, CLIP 6/8, and
-GPT-4o 8/8. These figures are qualitative observations only. They do not show
-that GPT-4o is objectively best, do not establish statistical significance,
-and are not mixed into the quantitative table above. No larger external
-dataset is claimed or fabricated.
+Recorded top-one outcomes on these eight examples were ViT 4/8 and CLIP 6/8.
+An earlier GPT-4o prototype produced 8/8, but the currently deployed optional
+closed-source comparison uses Claude and has not been re-evaluated. These
+figures are qualitative observations only, do not establish statistical
+significance, and are not mixed into the quantitative table above.
 
 ## Limitations
 
@@ -196,7 +196,7 @@ dataset is claimed or fabricated.
 - The external image gallery is selected and non-representative, and its source
   provenance is incomplete.
 - CLIP has not yet received the same full-test quantitative run.
-- GPT-4o comparison is intentionally small and paid; no significance is
+- Claude comparison is intentionally small and paid; no significance is
   implied.
 - None of the three applications should be used for production valuation,
   housing decisions, or claims of market coverage beyond the evidence above.
@@ -227,7 +227,7 @@ Conversational app:
 
 ```bash
 pip install -r conversational_agent/requirements.txt
-# Set OPENAI_API_KEY in the environment or deployment secret store.
+# Set ANTHROPIC_API_KEY in the environment or deployment secret store.
 python -m conversational_agent.app
 ```
 
@@ -240,7 +240,7 @@ python -m room_classifier.evaluate
 ```
 
 The default room evaluation runs ViT only. `--include-clip` downloads and runs
-the much larger CLIP model. GPT-4o is never called by the evaluation script.
+the much larger CLIP model. Claude is never called by the evaluation script.
 
 Tests:
 
@@ -257,7 +257,7 @@ synthetic price-pipeline smoke test. It does not download large vision models.
 .
 ├── price_estimator/       # regression app, training, evaluation, artifact
 ├── conversational_agent/ # JSON extraction, validation, shared-model frontend
-├── room_classifier/      # ViT/CLIP/GPT app and labelled-test evaluator
+├── room_classifier/      # ViT/CLIP/Claude app and labelled-test evaluator
 ├── results/              # committed aggregate evidence, no raw listings
 ├── tests/                # unit, import, and smoke tests
 ├── .github/workflows/    # lightweight CI

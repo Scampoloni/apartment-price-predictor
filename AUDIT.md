@@ -21,7 +21,7 @@ Audit date: 2026-07-20
 | ViT parameters | README claimed 4,614 trainable parameters. | Corrected to 6,152 for an eight-class `768 × 8 + 8` head. |
 | Dataset split | README claimed a new 80/10/10 split. | Corrected: the provided train/validation/test splits were preserved. |
 | Vision comparison | 4/8, 6/8, and 8/8 were presented as model performance and GPT-4o as best. | Relabelled as selected, non-representative qualitative examples with no significance claim. |
-| GPT-4o cost | Quantitative scope was unclear. | Zero GPT-4o audit calls; paid vision remains optional and qualitative. |
+| Closed-source vision cost | Quantitative scope was unclear. | Zero paid vision audit calls; Claude remains optional and qualitative. |
 | CLIP evaluation | Eight examples were the only evidence. | Added a same-test evaluator; full CLIP run remains explicitly incomplete due large CPU-only cost, so no quantitative CLIP metrics are claimed. |
 | API keys | Environment handling existed but was not tested/documented consistently. | Repository scan found no committed key; apps read environment variables only; `.env` remains ignored. |
 | Dependencies | Overlapping, unbounded app requirements and heavy imports complicated CI. | Added shared/lightweight requirements, separate vision requirements, version bounds, and lazy model loading. |

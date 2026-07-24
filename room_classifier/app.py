@@ -1,4 +1,4 @@
-"""Interactive comparison of ViT, CLIP, and an optional GPT-4o example."""
+"""Interactive comparison of ViT, CLIP, and an optional Claude example."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 
 import gradio as gr
-from openai import OpenAI
+from anthropic import Anthropic
 
 from room_classifier.core import CLIP_PROMPTS, LABELS, parse_vision_response
 
@@ -72,11 +72,11 @@ def predict_clip(image) -> dict[str, float]:
     }
 
 
-def predict_openai(image) -> dict[str, float]:
-    """Run one explicitly qualitative GPT-4o comparison when a key is set."""
-    api_key = os.getenv("OPENAI_API_KEY", "")
+def predict_claude(image) -> dict[str, float]:
+    """Run one explicitly qualitative Claude comparison when a key is set."""
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
-        return {"API key not set — qualitative comparison skipped": 0.0}
+        return {"Claude API key not set - comparison skipped": 0.0}
 
     buffer = BytesIO()
     image.convert("RGB").save(buffer, format="JPEG")
@@ -87,27 +87,31 @@ def predict_openai(image) -> dict[str, float]:
         'Return JSON only: {"label": "...", "confidence": 0.0}.'
     )
     try:
-        response = OpenAI(api_key=api_key).chat.completions.create(
-            model=os.getenv("OPENAI_VISION_MODEL", "gpt-4o"),
+        response = Anthropic(api_key=api_key).messages.create(
+            model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5"),
+            max_tokens=80,
+            temperature=0,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
                         {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded}"
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/jpeg",
+                                "data": encoded,
                             },
                         },
                     ],
                 }
             ],
-            response_format={"type": "json_object"},
-            max_tokens=80,
-            temperature=0,
         )
-        return parse_vision_response(response.choices[0].message.content)
+        text = "".join(
+            block.text for block in response.content if block.type == "text"
+        ).strip()
+        return parse_vision_response(text)
     except Exception as exc:  # noqa: BLE001
         return {f"Error: {exc}": 0.0}
 
@@ -115,7 +119,7 @@ def predict_openai(image) -> dict[str, float]:
 def classify(image):
     if image is None:
         return {}, {}, {}
-    return predict_vit(image), predict_clip(image), predict_openai(image)
+    return predict_vit(image), predict_clip(image), predict_claude(image)
 
 
 def get_examples() -> list[list[str]]:
@@ -134,7 +138,7 @@ with gr.Blocks(title="Zurich Apartment AI Suite — Room Classifier") as demo:
         """
         # Zurich Apartment AI Suite — Room Classifier
 
-        Compare a fine-tuned ViT and zero-shot CLIP. GPT-4o is optional and
+        Compare a fine-tuned ViT and zero-shot CLIP. Claude is optional and
         shown only as a qualitative single-image comparison because API calls
         cost money. The eight gallery images are not an evaluation dataset.
         """
@@ -144,9 +148,9 @@ with gr.Blocks(title="Zurich Apartment AI Suite — Room Classifier") as demo:
     with gr.Row():
         vit_output = gr.Label(num_top_classes=3, label="Fine-tuned ViT")
         clip_output = gr.Label(num_top_classes=3, label="CLIP zero-shot")
-        openai_output = gr.Label(
+        claude_output = gr.Label(
             num_top_classes=1,
-            label="GPT-4o qualitative example",
+            label="Claude qualitative example",
         )
     examples = get_examples()
     if examples:
@@ -154,7 +158,7 @@ with gr.Blocks(title="Zurich Apartment AI Suite — Room Classifier") as demo:
     classify_button.click(
         fn=classify,
         inputs=image_input,
-        outputs=[vit_output, clip_output, openai_output],
+        outputs=[vit_output, clip_output, claude_output],
     )
 
 

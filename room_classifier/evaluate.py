@@ -1,6 +1,6 @@
 """Evaluate ViT and optionally CLIP on the same full labelled test split.
 
-This script never calls GPT-4o. The eight gallery images remain a separate,
+This script never calls Claude. The eight gallery images remain a separate,
 qualitative demonstration.
 """
 

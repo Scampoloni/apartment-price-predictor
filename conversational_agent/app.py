@@ -7,7 +7,7 @@ import os
 from typing import Callable
 
 import gradio as gr
-from openai import OpenAI
+from anthropic import Anthropic
 
 from conversational_agent.core import (
     ApartmentQuery,
@@ -37,23 +37,26 @@ by deterministic application code.
 
 
 def call_llm_json(system_prompt: str, user_prompt: str) -> str:
-    """Call the configured OpenAI model with JSON-object response mode."""
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    """Call the configured Claude model and return its text response."""
+    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+    model_name = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set.")
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
+        raise ValueError("ANTHROPIC_API_KEY is not set.")
+    response = Anthropic(api_key=api_key).messages.create(
         model=model_name,
+        system=system_prompt,
         messages=[
-            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        response_format={"type": "json_object"},
         temperature=0,
         max_tokens=250,
     )
-    return response.choices[0].message.content.strip()
+    text = "".join(
+        block.text for block in response.content if block.type == "text"
+    ).strip()
+    if not text:
+        raise ValueError("Claude returned an empty response.")
+    return text
 
 
 def extract_preferences(user_text: str) -> ApartmentQuery:

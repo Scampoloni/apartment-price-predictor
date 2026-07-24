@@ -31,8 +31,8 @@ Unknown municipalities are accepted by the encoder but receive an explicit
 weak-support warning. The UI also displays the random-holdout and
 municipality-grouped uncertainty evidence.
 
-Required secret: `OPENAI_API_KEY`. Optional model override: `OPENAI_MODEL`
-(default `gpt-4o-mini`). Never place keys in source files or `.env` files
+Required secret: `ANTHROPIC_API_KEY`. Optional model override:
+`ANTHROPIC_MODEL` (default `claude-haiku-4-5`). Never place keys in source files or `.env` files
 committed to Git.
 
 Run from the repository root:
